@@ -11,6 +11,7 @@ namespace prog2200_assign2_library
     /// It is a double-buffered Label (<see cref="BufferedLabel"/>) so its text can change every tick without flicker,
     /// and its background is transparent so it shows as characters only, with no box around it.
     /// Visual state change: when it bumps into another flower its text flashes gold for a moment.
+    /// While it wilts its text turns red, brown and then dark like the other lilies.
     /// </summary>
     public class LilyOfTheValley : AsciiLily
     {
@@ -121,6 +122,8 @@ namespace prog2200_assign2_library
         /// <summary>Shows the new character grid in the label and sizes the label to fit it.</summary>
         protected override void OnRasterized()
         {
+            ShowColors();
+
             string art = GridText();
 
             if (art == _label.Text)
@@ -239,7 +242,7 @@ namespace prog2200_assign2_library
         /// </summary>
         private PointF PointOnArch(float along)
         {
-            float sag = Wilting * 0.15f;
+            float sag = WiltProgress * 0.15f;
 
             PointF start = StemTop;
             PointF control = new PointF(ArchControlX, ArchControlY);
@@ -252,10 +255,13 @@ namespace prog2200_assign2_library
                 before * before * start.Y + 2 * before * along * control.Y + along * along * end.Y);
         }
 
-        /// <summary>Pale text normally, gold while flashing. The background always stays transparent.</summary>
+        /// <summary>
+        /// Pale text normally (turning red, brown and dark while wilting), gold while flashing.
+        /// The background always stays transparent.
+        /// </summary>
         private void ShowColors()
         {
-            _label.ForeColor = _flashTicksLeft > 0 ? FlashColor : Color;
+            _label.ForeColor = _flashTicksLeft > 0 ? FlashColor : AsciiCanvas.Wilted(Color, WiltProgress);
         }
 
         /// <summary>Width of one character and height of one line of <see cref="ArtFont"/> as a Label draws it.</summary>

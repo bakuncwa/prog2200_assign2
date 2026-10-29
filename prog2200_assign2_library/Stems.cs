@@ -7,6 +7,7 @@ namespace prog2200_assign2_library
     /// Draws the stem from the vase mouth to a flower's head in ASCII. The stem is a curve that leaves the vase going
     /// up and reaches the head from below; each character cell it passes through gets a line character that follows
     /// its direction (| / \ -). Once the stem is long enough it grows two shaded leaves on opposite sides.
+    /// While its flower wilts, the stem and leaves turn from green to red, brown and then dark.
     /// All stems start from the same point, so together they branch out of the vase like a bouquet.
     /// </summary>
     public static class Stems
@@ -24,7 +25,6 @@ namespace prog2200_assign2_library
 
         private static readonly Color StemColor = Color.FromArgb(120, 170, 90);
         private static readonly Color LeafColor = Color.FromArgb(165, 205, 120);
-        private static readonly Color WiltColor = Color.FromArgb(150, 110, 60);
 
         /// <summary>Draws the stem from <paramref name="origin"/> to <paramref name="flower"/>'s head.</summary>
         public static void Draw(Graphics graphics, PointF origin, Flower flower)
@@ -39,8 +39,7 @@ namespace prog2200_assign2_library
                 return;
             }
 
-            bool wilting = flower.Stage == GrowthStage.Wilt;
-            Color stemColor = wilting ? WiltColor : StemColor;
+            Color stemColor = AsciiCanvas.Wilted(StemColor, flower.WiltProgress);
 
             // The curve leaves the vase going straight up and arrives at the head from below.
             PointF leaving = new PointF(origin.X, origin.Y - length * 0.45f);
@@ -73,7 +72,7 @@ namespace prog2200_assign2_library
 
             if (length >= LeafStemLength)
             {
-                Color leafColor = wilting ? WiltColor : LeafColor;
+                Color leafColor = AsciiCanvas.Wilted(LeafColor, flower.WiltProgress);
                 float leafLength = Math.Max(MinLeafLength, Math.Min(MaxLeafLength, length * 0.18f));
 
                 DrawLeaf(graphics, origin, leaving, arriving, end, 0.3f, -1, leafLength, leafColor);

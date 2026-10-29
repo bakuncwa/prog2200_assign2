@@ -38,6 +38,9 @@ namespace prog2200_assign2
         // A right-click puts one of each kind in, fully grown, spread this many pixels around the click.
         private const float BouquetSpread = 70f;
 
+        // Lilies wilt one at a time, at least this many milliseconds apart.
+        private const int WiltGapMs = 1500;
+
         // Pixels kept clear between the furthest a head can reach and the garden's edge, and the shortest full reach
         // a stem can have in a very small garden.
         private const float ReachMargin = 20f;
@@ -68,6 +71,9 @@ namespace prog2200_assign2
 
         // The one vase every stem grows from.
         private readonly Vase _vase = new Vase();
+
+        // Lets lilies that are ready to wilt go one at a time, on its own background thread.
+        private readonly WiltScheduler _wiltScheduler = new WiltScheduler(WiltGapMs);
 
         // Read from the appSettings section of App.config.
         private readonly int _startingFlowersPerKind = ReadSetting("StartingFlowersPerKind", DefaultStartingFlowersPerKind);
@@ -123,6 +129,7 @@ namespace prog2200_assign2
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             animationTimer.Stop();
+            _wiltScheduler.Dispose();
 
             base.OnFormClosing(e);
         }
@@ -222,10 +229,10 @@ namespace prog2200_assign2
         }
 
         /// <summary>
-        /// One animation step: every flower grows and moves (bouncing off the walls of the panel's current size and
-        /// staying within reach of its stem), then flowers that are about to touch bounce off each other and wilt,
-        /// then the panel is repainted. Two lilies in bloom that meet pollinate each other, and a new lily grows from
-        /// the vase towards where they met.
+        /// One animation step: every flower grows and moves along its stem (bouncing off the walls of the panel's
+        /// current size), then flowers that are about to touch bounce off each other, then lilies that are ready to
+        /// wilt are queued and the one whose turn has come starts wilting, then the panel is repainted. Two fresh
+        /// blooms that meet pollinate each other, and a new lily grows from the vase towards where they met.
         /// </summary>
         private void animationTimer_Tick(object sender, EventArgs e)
         {
@@ -255,6 +262,8 @@ namespace prog2200_assign2
 
                 AddFlower(RandomKind(), Point.Round((PointF)item));
             }
+
+            WiltInTurn();
 
             gardenPanel.Invalidate();
         }
@@ -327,6 +336,30 @@ namespace prog2200_assign2
         #endregion
 
         #region Helpers
+
+        /// <summary>
+        /// Hands every lily that is ready to wilt to the wilt scheduler, then starts wilting the one whose turn it is
+        /// (if it is still in the garden). The scheduler lets them go one at a time, so they never all wilt together.
+        /// </summary>
+        private void WiltInTurn()
+        {
+            foreach (object item in _flowers)
+            {
+                Flower flower = (Flower)item;
+
+                if (flower.IsReadyToWilt)
+                {
+                    _wiltScheduler.Request(flower);
+                }
+            }
+
+            Flower next;
+
+            if (_wiltScheduler.TryTakeNext(out next) && _flowers.Contains(next))
+            {
+                next.Wilt();
+            }
+        }
 
         /// <summary>
         /// Plants a seed of the given kind in the vase mouth, with its stem heading towards <paramref name="aim"/>.

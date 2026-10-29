@@ -7,8 +7,9 @@ namespace prog2200_assign2_library
     /// <summary>
     /// Makes flowers bounce off each other. Each flower is treated as a circle (<see cref="Flower.Center"/>,
     /// <see cref="Flower.Radius"/>) and every pair is checked once per tick. Flowers react a few pixels before
-    /// their circles would touch, so they bounce apart (and wilt) just before they meet. Seeds and sprouts are
-    /// skipped: they all start together at the vase mouth and are still too small to bump into anything.
+    /// their circles would touch, so they bounce apart (and blooms wilt) just before they meet. Seeds, sprouts and
+    /// wilting flowers are skipped: they are all small and close to the vase mouth, where they would only get in each
+    /// other's way growing out of it or shrinking back into it.
     /// </summary>
     public static class CollisionDetector
     {
@@ -17,6 +18,9 @@ namespace prog2200_assign2_library
 
         // How many pixels apart two flowers' circles are when they react to each other.
         private const float NearMissMargin = 6f;
+
+        // Overlapping flowers are eased apart by at most this many pixels each per tick, so they never jump.
+        private const float MaxPushPerTick = 1.5f;
 
         /// <summary>
         /// Checks every pair of flowers in <paramref name="flowers"/> and bounces apart any two that are about to touch.
@@ -34,7 +38,7 @@ namespace prog2200_assign2_library
             {
                 Flower first = (Flower)flowers[i];
 
-                if (IsTooYoung(first))
+                if (IsSkipped(first))
                 {
                     continue;
                 }
@@ -43,15 +47,17 @@ namespace prog2200_assign2_library
                 {
                     Flower second = (Flower)flowers[j];
 
-                    if (IsTooYoung(second))
+                    if (IsSkipped(second))
                     {
                         continue;
                     }
 
-                    // Checked before bouncing, because a bounce makes both flowers start to wilt.
-                    bool bothInBloom = first.Stage == GrowthStage.Bloom && second.Stage == GrowthStage.Bloom;
+                    // Checked before bouncing, because a bounce makes both flowers ready to wilt: only two fresh
+                    // blooms meeting for the first time pollinate each other.
+                    bool freshBlooms = first.Stage == GrowthStage.Bloom && second.Stage == GrowthStage.Bloom &&
+                        !first.IsReadyToWilt && !second.IsReadyToWilt;
 
-                    if (Bounce(first, second) && bothInBloom)
+                    if (Bounce(first, second) && freshBlooms)
                     {
                         PointF firstCenter = first.Center;
                         PointF secondCenter = second.Center;
@@ -65,17 +71,19 @@ namespace prog2200_assign2_library
             return pollinationPoints;
         }
 
-        private static bool IsTooYoung(Flower flower)
+        private static bool IsSkipped(Flower flower)
         {
-            return flower.Stage == GrowthStage.Seed || flower.Stage == GrowthStage.Sprout;
+            return flower.Stage == GrowthStage.Seed || flower.Stage == GrowthStage.Sprout ||
+                flower.Stage == GrowthStage.Wilt;
         }
 
         /// <summary>
-        /// If the two flowers are about to touch, pushes them apart and, when they are moving towards each other,
-        /// swaps the parts of their velocities that point along the line between their centres.
-        /// This is an elastic collision between two equal masses.
+        /// If the two flowers are about to touch, pushes them apart, tells both they were bumped and, when they are
+        /// moving towards each other, swaps the parts of their velocities that point along the line between their
+        /// centres. This is an elastic collision between two equal masses. Growing stems can push two heads together
+        /// without either moving towards the other, so being close enough is what counts as a collision.
         /// </summary>
-        /// <returns>True if they were moving towards each other and bounced.</returns>
+        /// <returns>True if they were close enough to collide.</returns>
         private static bool Bounce(Flower first, Flower second)
         {
             PointF firstCenter = first.Center;
@@ -101,23 +109,21 @@ namespace prog2200_assign2_library
                 normalY = dy / distance;
             }
 
-            // Move each flower half the overlap so they are just at the reacting distance.
-            float halfOverlap = (reactDistance - distance) / 2;
+            // Move each flower half the overlap (a little at a time) so they ease apart to the reacting distance.
+            float halfOverlap = Math.Min((reactDistance - distance) / 2, MaxPushPerTick);
             first.Offset(-normalX * halfOverlap, -normalY * halfOverlap);
             second.Offset(normalX * halfOverlap, normalY * halfOverlap);
 
             // How fast they are closing in on each other along that line. Zero or less means they are already separating.
             float closingSpeed = (first.Dx - second.Dx) * normalX + (first.Dy - second.Dy) * normalY;
 
-            if (closingSpeed <= 0)
+            if (closingSpeed > 0)
             {
-                return false;
+                first.Dx -= closingSpeed * normalX;
+                first.Dy -= closingSpeed * normalY;
+                second.Dx += closingSpeed * normalX;
+                second.Dy += closingSpeed * normalY;
             }
-
-            first.Dx -= closingSpeed * normalX;
-            first.Dy -= closingSpeed * normalY;
-            second.Dx += closingSpeed * normalX;
-            second.Dy += closingSpeed * normalY;
 
             first.OnCollision();
             second.OnCollision();

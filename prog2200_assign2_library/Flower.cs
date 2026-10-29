@@ -5,69 +5,101 @@ namespace prog2200_assign2_library
 {
     /// <summary>
     /// Base class for every shape in the garden: a flower head on a stem that grows out of the vase.
-    /// On each timer tick a flower grows a little, drifts upwards by its velocity, bounces off the walls of the panel it
-    /// lives in, and is held within reach of its stem (<see cref="Anchor"/>), which grows long enough to reach the top
-    /// of the garden as the flower grows. When it wilts - because its time is up or because another flower came too
-    /// close - it falls to the bottom of the garden, its stem shrinks back into the vase, and then it resprouts from the
-    /// vase as a new seed.
+    /// The head rides on the end of its stem: as the stem grows (<see cref="CurrentReach"/>) it carries the head out
+    /// of the vase mouth (<see cref="Anchor"/>) towards the edges of the garden, so the flower blossoms outwards
+    /// smoothly, while the head sways sideways by itself and bounces off the walls of the panel and off other heads.
+    /// When it is time to wilt - its bloom is over or another flower came too close - it waits for its turn
+    /// (<see cref="IsReadyToWilt"/>, see <see cref="WiltScheduler"/>), then droops over to one side while its stem
+    /// draws it back into the vase neck, and resprouts from there as a new seed.
     /// Subclasses decide what the flower looks like (<see cref="Draw"/>) and how big it is (<see cref="Size"/>).
     /// </summary>
     public abstract class Flower
     {
         // How many timer ticks each growth stage lasts, in GrowthStage order (Seed, Sprout, Bud, Bloom, Wilt).
-        // Slow on purpose, so the growth plays out like a time-lapse.
+        // Slow on purpose, so the growth plays out like a time-lapse. Each flower stretches or squeezes these a little.
         private static readonly int[] StageTicks = { 120, 180, 180, 900, 240 };
 
         // Scale of a drawn flower at the start and end of each stage, so it grows smoothly instead of jumping.
         private static readonly float[] StageStartScale = { 0.25f, 0.40f, 0.60f, 0.85f, 1.00f };
         private static readonly float[] StageEndScale = { 0.40f, 0.60f, 0.85f, 1.00f, 0.70f };
 
-        // How far the stem can reach, as a share of its full reach, at the start and end of each stage:
-        // it pushes up out of the vase as the flower grows and reaches its full length by the time it blooms. While wilting, it keeps its full reach so the head can fall
-        // to the bottom of the garden, and only shrinks back into the vase for the last part of the stage.
+        // How far the stem reaches, as a share of its full reach, at the start and end of each stage: it pushes up out
+        // of the vase as the flower grows and reaches its full length by the time it blooms. While wilting it shrinks
+        // back to nothing, easing in and out.
         private static readonly float[] StageStartReach = { 0.00f, 0.06f, 0.35f, 1.00f, 1.00f };
         private static readonly float[] StageEndReach = { 0.06f, 0.35f, 1.00f, 1.00f, 0.00f };
-        private const float WiltFallShare = 0.6f;
+
+        // Each flower's stages are this much longer or shorter (as a share), picked again every time it resprouts,
+        // so flowers planted together do not stay in step.
+        private const double PaceJitter = 0.25;
 
         // How far through the bloom stage a flower is when it is fully open; a flower put in the vase already grown
         // starts from here.
         private const float FullyOpenBloomProgress = 0.25f;
 
-        // Upward nudge per tick (pixels per tick) while the flower grows, so the heads rise towards the top of the garden.
-        private const float Lift = 0.02f;
+        // How quickly the stem's length catches up with its reach each tick (a share of the gap), so it grows smoothly.
+        private const float StemEase = 0.03f;
 
-        // A growing flower never goes faster than this many times its drifting speed.
+        // Sideways sway: how hard it pushes (pixels per tick, per tick), how fast it swings (radians per tick),
+        // how hard a leaning head is pulled back upright, and how much sideways speed is kept each tick.
+        private const float SwayPush = 0.006f;
+        private const float SwayRate = 0.01f;
+        private const float Uprighting = 0.01f;
+        private const float SwayDamping = 0.995f;
+
+        // Below this stem length the head turns as if the stem were this long, so short stems do not spin.
+        private const float MinSwayRadius = 20f;
+
+        // A flower never sways faster than this many times its drifting speed.
         private const float MaxSpeedFactor = 1.6f;
+
+        // While wilting: radians per tick the head droops over to its side, and the angle above the vase mouth's
+        // level it never droops below.
+        private const float WiltDroop = 0.006f;
+        private const float LowestDroopAngle = 0.15f;
 
         // A resprouting flower heads off up to this many radians either side of straight up.
         private const double ResproutSpread = Math.PI / 4;
 
-        // While wilting: pixels per tick added to the falling speed, how much sideways speed is kept each tick,
-        // how much speed is kept when bouncing off the floor, and below what speed it comes to rest on the floor.
-        private const float FallGravity = 0.3f;
-        private const float FallFriction = 0.97f;
-        private const float FloorBounce = 0.45f;
-        private const float RestingSpeed = 1.5f;
+        // Hitting a wall only counts as a bounce if the flower was moving into it at least this fast.
+        private const float MinBounceSpeed = 0.05f;
 
-        // Picks the direction a flower drifts off in when it resprouts.
-        private static readonly Random ResproutRandom = new Random();
+        private const float StraightUp = (float)(-Math.PI / 2);
 
-        // Speed the flower drifts at while it grows, in pixels per tick.
+        // Only used on the user-interface thread.
+        private static readonly Random FlowerRandom = new Random();
+
+        // This flower's own stage lengths: StageTicks stretched or squeezed a little.
+        private readonly int[] _stageTicks = new int[StageTicks.Length];
+
+        // Speed the flower drifts at, in pixels per tick.
         private readonly float _driftSpeed;
 
-        private int _ticksInStage;
+        // Starting point of the sway, so flowers do not sway in step.
+        private readonly float _swayPhase;
 
-        // Whether TieTo has been called, and the stem's longest possible reach in pixels.
+        private int _ticksInStage;
+        private int _swayClock;
+
+        // How big the flower was when it started wilting, so it shrinks from there instead of jumping to full size.
+        private float _scaleAtWilt = 1f;
+
+        // Whether TieTo has been called, the stem's longest possible reach in pixels, and which way it points
+        // from the vase mouth (radians, screen coordinates, -pi/2 is straight up).
         private bool _isTied;
         private float _maxReach;
+        private float _angle;
 
         protected Flower(PointF velocity, Color color)
         {
             Dx = velocity.X;
             Dy = velocity.Y;
             _driftSpeed = (float)Math.Sqrt(velocity.X * velocity.X + velocity.Y * velocity.Y);
+            _angle = _driftSpeed > 0 ? (float)Math.Atan2(velocity.Y, velocity.X) : StraightUp;
+            _swayPhase = (float)(FlowerRandom.NextDouble() * 2 * Math.PI);
             Color = color;
             Stage = GrowthStage.Seed;
+            PickPace();
         }
 
         /// <summary>Left edge of the flower, in panel coordinates.</summary>
@@ -88,6 +120,18 @@ namespace prog2200_assign2_library
         /// <summary>Where the flower is in its life cycle.</summary>
         public GrowthStage Stage { get; private set; }
 
+        /// <summary>
+        /// True once the flower should wilt - its bloom is over, or it was bumped while in bloom - until
+        /// <see cref="Wilt"/> is called. A flower that has finished blooming stays in full bloom while it waits.
+        /// </summary>
+        public bool IsReadyToWilt { get; private set; }
+
+        /// <summary>How far through wilting the flower is, from 0 (not wilting) to 1 (about to resprout).</summary>
+        public float WiltProgress
+        {
+            get { return Stage == GrowthStage.Wilt ? StageProgress : 0f; }
+        }
+
         /// <summary>Where the stem starts: the vase mouth.</summary>
         public PointF Anchor { get; private set; }
 
@@ -97,7 +141,7 @@ namespace prog2200_assign2_library
             get { return Center; }
         }
 
-        /// <summary>How far the stem can reach right now, in pixels.</summary>
+        /// <summary>How far the stem reaches right now, in pixels.</summary>
         public float CurrentReach
         {
             get
@@ -107,11 +151,10 @@ namespace prog2200_assign2_library
 
                 if (Stage == GrowthStage.Wilt)
                 {
-                    progress = Math.Max(0f, (progress - WiltFallShare) / (1 - WiltFallShare));
+                    progress = progress * progress * (3 - 2 * progress);
                 }
 
-                float share = StageStartReach[stage] + (StageEndReach[stage] - StageStartReach[stage]) * progress;
-                return _maxReach * share;
+                return _maxReach * (StageStartReach[stage] + (StageEndReach[stage] - StageStartReach[stage]) * progress);
             }
         }
 
@@ -150,7 +193,7 @@ namespace prog2200_assign2_library
         /// <summary>How far through the current stage the flower is, from 0 (just started) to 1 (about to change).</summary>
         protected float StageProgress
         {
-            get { return (float)_ticksInStage / StageTicks[(int)Stage]; }
+            get { return Math.Min(1f, (float)_ticksInStage / _stageTicks[(int)Stage]); }
         }
 
         /// <summary>
@@ -161,35 +204,30 @@ namespace prog2200_assign2_library
             get
             {
                 int stage = (int)Stage;
-                return StageStartScale[stage] + (StageEndScale[stage] - StageStartScale[stage]) * StageProgress;
+                float start = Stage == GrowthStage.Wilt ? _scaleAtWilt : StageStartScale[stage];
+                return start + (StageEndScale[stage] - start) * StageProgress;
             }
         }
 
         /// <summary>
-        /// Called on every timer tick: grows the flower, moves it by its velocity (falling if it is wilting),
-        /// bounces it off the edges of <paramref name="bounds"/> (the panel's current client area) and keeps it
-        /// within reach of its stem.
+        /// Called on every timer tick: grows the flower, moves it along with its stem (or by its velocity if it has
+        /// no stem yet) and bounces it off the edges of <paramref name="bounds"/> (the panel's current client area).
         /// </summary>
         public virtual void Move(Rectangle bounds)
         {
             Grow();
 
-            if (Stage == GrowthStage.Wilt)
+            if (_isTied)
             {
-                Dy += FallGravity;
-                Dx *= FallFriction;
+                FollowStem();
             }
             else
             {
-                Dy -= Lift;
-                LimitSpeed();
+                X += Dx;
+                Y += Dy;
             }
 
-            X += Dx;
-            Y += Dy;
-
             BounceOffWalls(bounds);
-            KeepWithinReach();
             OnMoved();
         }
 
@@ -208,10 +246,16 @@ namespace prog2200_assign2_library
         /// <summary>Draws the flower onto the panel.</summary>
         public abstract void Draw(Graphics graphics);
 
-        /// <summary>Called when this flower bounces off another flower. A bud or flower that is bumped starts to wilt.</summary>
+        /// <summary>
+        /// Called when this flower bumps into another flower. A flower in bloom that is bumped is ready to wilt;
+        /// a bud just bounces, so it still gets to blossom.
+        /// </summary>
         public virtual void OnCollision()
         {
-            Wilt();
+            if (Stage == GrowthStage.Bloom)
+            {
+                IsReadyToWilt = true;
+            }
         }
 
         /// <summary>
@@ -222,13 +266,13 @@ namespace prog2200_assign2_library
         public void GrowFully()
         {
             Stage = GrowthStage.Bloom;
-            _ticksInStage = (int)(StageTicks[(int)GrowthStage.Bloom] * FullyOpenBloomProgress);
+            _ticksInStage = (int)(_stageTicks[(int)GrowthStage.Bloom] * FullyOpenBloomProgress);
             OnStageChanged();
         }
 
         /// <summary>
-        /// Starts wilting straight away. Only buds and flowers in bloom wilt; seeds and sprouts are too young and
-        /// a wilting flower is already falling.
+        /// Starts wilting now. Only buds and flowers in bloom wilt; seeds and sprouts are too young and a wilting
+        /// flower is already wilting. Called when the <see cref="WiltScheduler"/> says it is this flower's turn.
         /// </summary>
         public void Wilt()
         {
@@ -237,8 +281,10 @@ namespace prog2200_assign2_library
                 return;
             }
 
+            _scaleAtWilt = GrowthScale;
             Stage = GrowthStage.Wilt;
             _ticksInStage = 0;
+            IsReadyToWilt = false;
             OnStageChanged();
         }
 
@@ -293,16 +339,42 @@ namespace prog2200_assign2_library
         {
         }
 
+        /// <summary>The difference between two angles in radians, wrapped to the range -pi..pi.</summary>
+        protected static float AngleBetween(float angle, float other)
+        {
+            double difference = (angle - other) % (2 * Math.PI);
+
+            if (difference > Math.PI)
+            {
+                difference -= 2 * Math.PI;
+            }
+            else if (difference < -Math.PI)
+            {
+                difference += 2 * Math.PI;
+            }
+
+            return (float)difference;
+        }
+
         /// <summary>
-        /// Advances the life cycle by one tick, moving to the next stage when this one is over.
-        /// After wilting it resprouts as a seed and drifts off in a new direction.
+        /// Advances the life cycle by one tick, moving to the next stage when this one is over. A flower whose bloom
+        /// is over stays in full bloom, ready to wilt, until it is told to. After wilting it resprouts as a seed.
         /// </summary>
         private void Grow()
         {
+            int stage = (int)Stage;
+
             _ticksInStage++;
 
-            if (_ticksInStage < StageTicks[(int)Stage])
+            if (_ticksInStage < _stageTicks[stage])
             {
+                return;
+            }
+
+            if (Stage == GrowthStage.Bloom)
+            {
+                _ticksInStage = _stageTicks[stage];
+                IsReadyToWilt = true;
                 return;
             }
 
@@ -321,71 +393,85 @@ namespace prog2200_assign2_library
             OnStageChanged();
         }
 
-        /// <summary>Sets the flower drifting at its usual speed in a random upward direction.</summary>
-        private void Resprout()
-        {
-            double angle = -Math.PI / 2 + (ResproutRandom.NextDouble() * 2 - 1) * ResproutSpread;
-
-            Dx = (float)Math.Cos(angle) * _driftSpeed;
-            Dy = (float)Math.Sin(angle) * _driftSpeed;
-        }
-
         /// <summary>
-        /// If the stem end is further from the anchor than the stem can reach, pulls the flower back in and bounces
-        /// it off that limit (a wilting flower is just held, not bounced, so it can be drawn back into the vase).
+        /// Moves the head along with its stem. Its angle and stem length come from where the head actually is
+        /// (a collision or a wall may have pushed it), then it sways sideways, and the stem length eases towards
+        /// the current reach, which carries the head out of the vase as it grows. While wilting the stem only ever
+        /// gets shorter, following the shrinking reach exactly, so the head is back in the vase neck when it resprouts.
         /// </summary>
-        private void KeepWithinReach()
+        private void FollowStem()
         {
-            if (!_isTied)
-            {
-                return;
-            }
-
             PointF end = StemEnd;
             float dx = end.X - Anchor.X;
             float dy = end.Y - Anchor.Y;
-            float distance = (float)Math.Sqrt(dx * dx + dy * dy);
-            float reach = CurrentReach;
+            float length = (float)Math.Sqrt(dx * dx + dy * dy);
 
-            if (distance <= reach || distance <= 0)
+            if (length > 1f)
             {
-                return;
+                _angle = (float)Math.Atan2(dy, dx);
             }
 
-            float unitX = dx / distance;
-            float unitY = dy / distance;
-            float excess = distance - reach;
+            float sideways = Dx * -(float)Math.Sin(_angle) + Dy * (float)Math.Cos(_angle);
 
-            X -= unitX * excess;
-            Y -= unitY * excess;
-
-            float outward = Dx * unitX + Dy * unitY;
-
-            if (outward > 0)
+            if (Stage == GrowthStage.Wilt)
             {
-                float rebound = Stage == GrowthStage.Wilt ? 1f : 2f;
-
-                Dx -= rebound * outward * unitX;
-                Dy -= rebound * outward * unitY;
+                // Droop over towards its own side, but never below the level of the vase mouth. It turns a little
+                // each tick either way, so a head that was pushed too low rises back gently instead of jumping.
+                float lowest = Math.Cos(_angle) >= 0 ? -LowestDroopAngle : (float)-Math.PI + LowestDroopAngle;
+                _angle += Math.Max(-WiltDroop, Math.Min(AngleBetween(lowest, _angle), WiltDroop));
+                sideways = 0;
             }
+            else
+            {
+                _swayClock++;
+                sideways += SwayPush * (float)Math.Sin(_swayClock * SwayRate + _swayPhase);
+                sideways -= Uprighting * AngleBetween(_angle, StraightUp);
+                sideways *= SwayDamping;
+
+                float maxSpeed = _driftSpeed * MaxSpeedFactor;
+                sideways = Math.Max(-maxSpeed, Math.Min(sideways, maxSpeed));
+
+                _angle += sideways / Math.Max(length, MinSwayRadius);
+            }
+
+            length = Stage == GrowthStage.Wilt
+                ? Math.Min(length, CurrentReach)
+                : length + (CurrentReach - length) * StemEase;
+
+            X += Anchor.X + (float)Math.Cos(_angle) * length - end.X;
+            Y += Anchor.Y + (float)Math.Sin(_angle) * length - end.Y;
+
+            // The head only moves sideways by itself; the stem carries it in and out.
+            Dx = -(float)Math.Sin(_angle) * sideways;
+            Dy = (float)Math.Cos(_angle) * sideways;
         }
 
-        /// <summary>Slows the flower down if collisions or the lift have made it faster than it should drift.</summary>
-        private void LimitSpeed()
+        /// <summary>Puts the head back in the vase mouth and sets it off upwards in a new direction, at a new pace.</summary>
+        private void Resprout()
         {
-            float speed = (float)Math.Sqrt(Dx * Dx + Dy * Dy);
-            float maxSpeed = _driftSpeed * MaxSpeedFactor;
+            PointF end = StemEnd;
 
-            if (speed > maxSpeed && speed > 0)
+            X += Anchor.X - end.X;
+            Y += Anchor.Y - end.Y;
+            _angle = (float)(StraightUp + (FlowerRandom.NextDouble() * 2 - 1) * ResproutSpread);
+            Dx = 0;
+            Dy = 0;
+            PickPace();
+        }
+
+        /// <summary>Gives this flower its own stage lengths, a little longer or shorter than usual.</summary>
+        private void PickPace()
+        {
+            for (int i = 0; i < StageTicks.Length; i++)
             {
-                Dx *= maxSpeed / speed;
-                Dy *= maxSpeed / speed;
+                double pace = 1 + (FlowerRandom.NextDouble() * 2 - 1) * PaceJitter;
+                _stageTicks[i] = Math.Max(1, (int)(StageTicks[i] * pace));
             }
         }
 
         /// <summary>
         /// If the flower has gone past an edge, puts it back on the edge and points its velocity away from that wall.
-        /// A falling (wilting) flower loses speed when it hits the floor and comes to rest once it is slow enough.
+        /// It only counts as a bounce if the flower was actually moving into the wall, not just resting against it.
         /// </summary>
         private void BounceOffWalls(Rectangle bounds)
         {
@@ -395,35 +481,27 @@ namespace prog2200_assign2_library
             if (X < bounds.Left)
             {
                 X = bounds.Left;
+                bounced |= Dx < -MinBounceSpeed;
                 Dx = Math.Abs(Dx);
-                bounced = true;
             }
             else if (X + size.Width > bounds.Right)
             {
                 X = Math.Max(bounds.Left, bounds.Right - size.Width);
+                bounced |= Dx > MinBounceSpeed;
                 Dx = -Math.Abs(Dx);
-                bounced = true;
             }
 
             if (Y < bounds.Top)
             {
                 Y = bounds.Top;
+                bounced |= Dy < -MinBounceSpeed;
                 Dy = Math.Abs(Dy);
-                bounced = true;
             }
             else if (Y + size.Height > bounds.Bottom)
             {
                 Y = Math.Max(bounds.Top, bounds.Bottom - size.Height);
-
-                if (Stage == GrowthStage.Wilt && Math.Abs(Dy) < RestingSpeed)
-                {
-                    Dy = 0;
-                }
-                else
-                {
-                    Dy = Stage == GrowthStage.Wilt ? -Math.Abs(Dy) * FloorBounce : -Math.Abs(Dy);
-                    bounced = true;
-                }
+                bounced |= Dy > MinBounceSpeed;
+                Dy = -Math.Abs(Dy);
             }
 
             if (bounced)

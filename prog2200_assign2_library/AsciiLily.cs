@@ -11,7 +11,7 @@ namespace prog2200_assign2_library
     /// the character from <see cref="Ramp"/> that matches its brightness (dark " " up to bright "@"). The characters
     /// are copied out of a <see cref="GlyphAtlas"/> into one bitmap per lily, which is drawn in a single call.
     /// The head grows from a seed at the end of its stem into a sprout, a bud and an open flower, then crumbles away
-    /// and browns as it wilts. Like stop-motion, the head's picture is only redrawn every few ticks, so it grows in
+    /// as it wilts, turning from its own colour to red, brown and then dark until it disappears. Like stop-motion, the head's picture is only redrawn every few ticks, so it grows in
     /// small steps while it still moves smoothly. Grain, dark specks and a few stray flickering "data" characters around the head give
     /// it the look of a TouchDesigner render. The stem itself is drawn by <see cref="Stems"/>.
     /// </summary>
@@ -44,15 +44,11 @@ namespace prog2200_assign2_library
         // How many ticks pass between redrawing the head's picture: its stop-motion frame rate.
         private const int StopMotionTicks = 4;
 
-        // Wilting colour is shown in steps so the colours stay few.
-        private const int WiltColorSteps = 4;
-
         /// <summary>Colours shared by every lily's sprout and bud: pale greens, like the reference render.</summary>
         protected static readonly Color StemColor = Color.FromArgb(120, 170, 90);
         protected static readonly Color LeafColor = Color.FromArgb(165, 205, 120);
 
         private static readonly Color SeedColor = Color.FromArgb(215, 195, 140);
-        private static readonly Color WiltColor = Color.FromArgb(150, 110, 60);
 
         // Full-bloom width in pixels.
         private readonly float _bloomWidth;
@@ -183,11 +179,6 @@ namespace prog2200_assign2_library
             }
         }
 
-        /// <summary>How far through wilting the flower is, from 0 (fresh) to 1 (about to resprout).</summary>
-        protected float Wilting
-        {
-            get { return Stage == GrowthStage.Wilt ? StageProgress : 0f; }
-        }
 
         /// <summary>
         /// Grows and moves like every other flower, then, every few ticks, draws the next frame of the head into its
@@ -264,7 +255,7 @@ namespace prog2200_assign2_library
             _headWidthPixels = grid.Width * cell.Width;
 
             string ramp = Ramp;
-            float wilt = (float)Math.Round(Wilting * WiltColorSteps) / WiltColorSteps;
+            float wilt = WiltProgress;
             int dataTick = _ticksAlive / DataGlyphTicks;
 
             for (int row = 0; row < grid.Height; row++)
@@ -283,13 +274,13 @@ namespace prog2200_assign2_library
                     if (level > 0)
                     {
                         _characters[row, column] = ramp[level];
-                        _colors[row, column] = AsciiCanvas.Shade(Blend(sample.Color, WiltColor, wilt * 0.8f), brightness);
+                        _colors[row, column] = AsciiCanvas.Shade(AsciiCanvas.Wilted(sample.Color, wilt), brightness);
                     }
                     else if (IsInsideAura(column, row, grid) &&
                         TryDataGlyph(fromCentre, fromMiddle, dataTick, out glyph))
                     {
                         _characters[row, column] = glyph;
-                        _colors[row, column] = AsciiCanvas.Shade(Color, 0f);
+                        _colors[row, column] = AsciiCanvas.Shade(AsciiCanvas.Wilted(Color, wilt), 0f);
                     }
                     else
                     {
@@ -462,23 +453,6 @@ namespace prog2200_assign2_library
             return AsciiCanvas.DistanceToSegment(x, y, start, end);
         }
 
-        /// <summary>The difference between two angles in radians, wrapped to the range -pi..pi.</summary>
-        protected static float AngleBetween(float angle, float other)
-        {
-            double difference = (angle - other) % (2 * Math.PI);
-
-            if (difference > Math.PI)
-            {
-                difference -= 2 * Math.PI;
-            }
-            else if (difference < -Math.PI)
-            {
-                difference += 2 * Math.PI;
-            }
-
-            return (float)difference;
-        }
-
         /// <summary>Mixes two colours: 0 gives <paramref name="from"/>, 1 gives <paramref name="to"/>.</summary>
         protected static Color Blend(Color from, Color to, float amount)
         {
@@ -561,7 +535,7 @@ namespace prog2200_assign2_library
 
         /// <summary>
         /// Adds grain and dark specks to a cell's brightness, and while wilting makes bits of the head drop away
-        /// and the rest fade.
+        /// and the rest fade until nothing is left.
         /// </summary>
         private float Texture(float brightness, int fromCentre, int fromMiddle, float wilt)
         {
@@ -584,7 +558,7 @@ namespace prog2200_assign2_library
                 return 0f;
             }
 
-            return Clamp01(brightness * (1f - 0.3f * wilt));
+            return Clamp01(brightness * (1f - wilt));
         }
 
         /// <summary>

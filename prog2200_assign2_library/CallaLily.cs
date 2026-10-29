@@ -96,7 +96,7 @@ namespace prog2200_assign2_library
                 corners[i] = ToPanel(FromOutline(Outline[i]));
             }
 
-            using (Pen trace = new Pen(Color.FromArgb(TraceAlpha, Color)))
+            using (Pen trace = new Pen(Color.FromArgb(TraceAlpha, AsciiCanvas.Wilted(Color, WiltProgress))))
             {
                 graphics.DrawPolygon(trace, corners);
             }

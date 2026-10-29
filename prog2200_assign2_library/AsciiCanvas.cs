@@ -14,6 +14,17 @@ namespace prog2200_assign2_library
         /// <summary>Characters from empty to brightest.</summary>
         public const string Ramp = " .:-=+*#%@";
 
+        // Colours a wilting flower passes through after its own colour: red, then brown, then nearly black.
+        private static readonly Color[] WiltColors =
+        {
+            Color.FromArgb(200, 40, 35),
+            Color.FromArgb(125, 70, 35),
+            Color.FromArgb(35, 22, 12)
+        };
+
+        // Wilting colours are shown in this many steps so only a few colours are ever made.
+        private const int WiltSteps = 10;
+
         // Each cell is sampled on a small grid of points and the results blended, like downsampling an image.
         private const int SamplesAcross = 2;
         private const int SamplesDown = 2;
@@ -134,6 +145,27 @@ namespace prog2200_assign2_library
             }
 
             return brightness < 0.75f ? color : Blend(color, Color.White, 0.35f);
+        }
+
+        /// <summary>
+        /// The colour of something wilting: <paramref name="original"/> at the start (<paramref name="wilt"/> 0),
+        /// turning red, then brown, then nearly black at the end (1).
+        /// </summary>
+        public static Color Wilted(Color original, float wilt)
+        {
+            float steps = (float)Math.Round(Clamp01(wilt) * WiltSteps) / WiltSteps;
+
+            if (steps <= 0)
+            {
+                return original;
+            }
+
+            // Which pair of colours the wilt is between, and how far between them.
+            float position = steps * WiltColors.Length;
+            int next = Math.Min((int)Math.Ceiling(position), WiltColors.Length) - 1;
+            Color from = next == 0 ? original : WiltColors[next - 1];
+
+            return Blend(from, WiltColors[next], position - next);
         }
 
         /// <summary>Mixes two colours: 0 gives <paramref name="from"/>, 1 gives <paramref name="to"/>.</summary>
