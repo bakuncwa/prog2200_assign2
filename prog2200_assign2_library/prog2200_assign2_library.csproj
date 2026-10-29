@@ -47,7 +47,6 @@
     <Compile Include="GrowthStage.cs" />
     <Compile Include="LilyOfTheValley.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ReachingHand.cs" />
     <Compile Include="SpiderLily.cs" />
     <Compile Include="Stems.cs" />
     <Compile Include="TigerLily.cs" />

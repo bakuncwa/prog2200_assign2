@@ -5,36 +5,42 @@ namespace prog2200_assign2_library
 {
     /// <summary>
     /// Base class for every shape in the garden: a flower head on a stem that grows out of the vase.
-    /// On each timer tick a flower grows a little, drifts by its velocity, bounces off the walls of the panel it lives
-    /// in, and is held within reach of its stem (<see cref="Anchor"/>), which grows longer as the flower grows.
-    /// When it wilts - because its time is up or because another flower came too close - it falls under gravity while
-    /// its stem shrinks back into the vase, and then it resprouts from the vase as a new seed.
+    /// On each timer tick a flower grows a little, drifts upwards by its velocity, bounces off the walls of the panel it
+    /// lives in, and is held within reach of its stem (<see cref="Anchor"/>), which grows long enough to reach the top
+    /// of the garden as the flower grows. When it wilts - because its time is up or because another flower came too
+    /// close - it falls to the bottom of the garden, its stem shrinks back into the vase, and then it resprouts from the
+    /// vase as a new seed.
     /// Subclasses decide what the flower looks like (<see cref="Draw"/>) and how big it is (<see cref="Size"/>).
     /// </summary>
     public abstract class Flower
     {
         // How many timer ticks each growth stage lasts, in GrowthStage order (Seed, Sprout, Bud, Bloom, Wilt).
-        private static readonly int[] StageTicks = { 50, 70, 70, 400, 110 };
+        // Slow on purpose, so the growth plays out like a time-lapse.
+        private static readonly int[] StageTicks = { 120, 180, 180, 900, 240 };
 
         // Scale of a drawn flower at the start and end of each stage, so it grows smoothly instead of jumping.
         private static readonly float[] StageStartScale = { 0.25f, 0.40f, 0.60f, 0.85f, 1.00f };
         private static readonly float[] StageEndScale = { 0.40f, 0.60f, 0.85f, 1.00f, 0.70f };
 
         // How far the stem can reach, as a share of its full reach, at the start and end of each stage:
-        // it pushes up out of the vase as the flower grows and shrinks back into it while the flower wilts.
-        private static readonly float[] StageStartReach = { 0.00f, 0.06f, 0.35f, 0.65f, 1.00f };
-        private static readonly float[] StageEndReach = { 0.06f, 0.35f, 0.65f, 1.00f, 0.00f };
+        // it pushes up out of the vase as the flower grows and reaches its full length by the time it blooms. While wilting, it keeps its full reach so the head can fall
+        // to the bottom of the garden, and only shrinks back into the vase for the last part of the stage.
+        private static readonly float[] StageStartReach = { 0.00f, 0.06f, 0.35f, 1.00f, 1.00f };
+        private static readonly float[] StageEndReach = { 0.06f, 0.35f, 1.00f, 1.00f, 0.00f };
+        private const float WiltFallShare = 0.6f;
 
-        // Upward nudge per tick (pixels per tick) while the head hangs lower than this many pixels above the vase mouth,
-        // so the bouquet keeps standing up.
-        private const float Lift = 0.03f;
-        private const float LiftHeight = 30f;
+        // How far through the bloom stage a flower is when it is fully open; a flower put in the vase already grown
+        // starts from here.
+        private const float FullyOpenBloomProgress = 0.25f;
+
+        // Upward nudge per tick (pixels per tick) while the flower grows, so the heads rise towards the top of the garden.
+        private const float Lift = 0.02f;
 
         // A growing flower never goes faster than this many times its drifting speed.
         private const float MaxSpeedFactor = 1.6f;
 
         // A resprouting flower heads off up to this many radians either side of straight up.
-        private const double ResproutSpread = Math.PI / 3;
+        private const double ResproutSpread = Math.PI / 4;
 
         // While wilting: pixels per tick added to the falling speed, how much sideways speed is kept each tick,
         // how much speed is kept when bouncing off the floor, and below what speed it comes to rest on the floor.
@@ -85,12 +91,6 @@ namespace prog2200_assign2_library
         /// <summary>Where the stem starts: the vase mouth.</summary>
         public PointF Anchor { get; private set; }
 
-        /// <summary>
-        /// How much of the garden's full reach this flower's stem can use, from 0 to 1, so the bouquet has
-        /// flowers at different heights.
-        /// </summary>
-        public float ReachShare { get; set; } = 1f;
-
         /// <summary>Where the stem meets the flower head, in panel coordinates.</summary>
         public virtual PointF StemEnd
         {
@@ -103,8 +103,15 @@ namespace prog2200_assign2_library
             get
             {
                 int stage = (int)Stage;
-                float share = StageStartReach[stage] + (StageEndReach[stage] - StageStartReach[stage]) * StageProgress;
-                return _maxReach * ReachShare * share;
+                float progress = StageProgress;
+
+                if (Stage == GrowthStage.Wilt)
+                {
+                    progress = Math.Max(0f, (progress - WiltFallShare) / (1 - WiltFallShare));
+                }
+
+                float share = StageStartReach[stage] + (StageEndReach[stage] - StageStartReach[stage]) * progress;
+                return _maxReach * share;
             }
         }
 
@@ -174,11 +181,7 @@ namespace prog2200_assign2_library
             }
             else
             {
-                if (_isTied && StemEnd.Y > Anchor.Y - LiftHeight)
-                {
-                    Dy -= Lift;
-                }
-
+                Dy -= Lift;
                 LimitSpeed();
             }
 
@@ -192,7 +195,7 @@ namespace prog2200_assign2_library
 
         /// <summary>
         /// Ties the flower's stem to <paramref name="anchor"/> (the vase mouth), with a full reach of
-        /// <paramref name="maxReach"/> pixels before <see cref="ReachShare"/> is applied.
+        /// <paramref name="maxReach"/> pixels.
         /// Called when the flower is planted and whenever the garden is resized.
         /// </summary>
         public void TieTo(PointF anchor, float maxReach)
@@ -209,6 +212,18 @@ namespace prog2200_assign2_library
         public virtual void OnCollision()
         {
             Wilt();
+        }
+
+        /// <summary>
+        /// Jumps straight to full bloom, fully open, as if the flower had been put in the vase already grown.
+        /// It carries on from there like any other flower: the rest of its bloom, then wilting, then resprouting
+        /// from a seed.
+        /// </summary>
+        public void GrowFully()
+        {
+            Stage = GrowthStage.Bloom;
+            _ticksInStage = (int)(StageTicks[(int)GrowthStage.Bloom] * FullyOpenBloomProgress);
+            OnStageChanged();
         }
 
         /// <summary>

@@ -11,7 +11,8 @@ namespace prog2200_assign2_library
     /// the character from <see cref="Ramp"/> that matches its brightness (dark " " up to bright "@"). The characters
     /// are copied out of a <see cref="GlyphAtlas"/> into one bitmap per lily, which is drawn in a single call.
     /// The head grows from a seed at the end of its stem into a sprout, a bud and an open flower, then crumbles away
-    /// and browns as it wilts. Grain, dark specks and a few stray flickering "data" characters around the head give
+    /// and browns as it wilts. Like stop-motion, the head's picture is only redrawn every few ticks, so it grows in
+    /// small steps while it still moves smoothly. Grain, dark specks and a few stray flickering "data" characters around the head give
     /// it the look of a TouchDesigner render. The stem itself is drawn by <see cref="Stems"/>.
     /// </summary>
     /// <remarks>
@@ -40,6 +41,9 @@ namespace prog2200_assign2_library
         // How many ticks the stray data characters stay in one place before they jump somewhere else.
         private const int DataGlyphTicks = 6;
 
+        // How many ticks pass between redrawing the head's picture: its stop-motion frame rate.
+        private const int StopMotionTicks = 4;
+
         // Wilting colour is shown in steps so the colours stay few.
         private const int WiltColorSteps = 4;
 
@@ -60,6 +64,9 @@ namespace prog2200_assign2_library
         private Color[,] _colors;
         private int _ticksAlive;
 
+        // Set when the head changes stage, so the next frame is drawn straight away instead of waiting.
+        private bool _redrawNow;
+
         // The characters copied into pixels, and whether that copy is up to date with the character grid.
         private Bitmap _bitmap;
         private int[] _pixels;
@@ -79,12 +86,14 @@ namespace prog2200_assign2_library
             _noiseSeed = (int)(velocity.X * 7919) ^ (int)(velocity.Y * 104729);
         }
 
-        /// <summary>The size of the character grid, which grows with the flower.</summary>
+        /// <summary>The size of the character grid, which grows with the flower. It changes when a new frame is drawn.</summary>
         public override SizeF Size
         {
             get
             {
-                Size grid = GridSize(GrowthScale);
+                Size grid = _characters == null
+                    ? GridSize(GrowthScale)
+                    : new Size(_characters.GetLength(1), _characters.GetLength(0));
                 Size cell = CellSize;
                 return new SizeF(grid.Width * cell.Width, grid.Height * cell.Height);
             }
@@ -181,13 +190,20 @@ namespace prog2200_assign2_library
         }
 
         /// <summary>
-        /// Grows and moves like every other flower, then draws the head into its character grid.
-        /// When the grid changes size the head is shifted so the end of its stem stays where it was.
+        /// Grows and moves like every other flower, then, every few ticks, draws the next frame of the head into its
+        /// character grid. When the grid changes size the head is shifted so the end of its stem stays where it was.
         /// </summary>
         public override void Move(Rectangle bounds)
         {
             _ticksAlive++;
             base.Move(bounds);
+
+            if (_characters != null && !_redrawNow && _ticksAlive % StopMotionTicks != 0)
+            {
+                return;
+            }
+
+            _redrawNow = false;
 
             PointF stemEndBefore = StemEnd;
             Rasterize();
@@ -310,6 +326,12 @@ namespace prog2200_assign2_library
         /// <summary>Called after the character grid has been redrawn.</summary>
         protected virtual void OnRasterized()
         {
+        }
+
+        /// <summary>A new stage looks different straight away, so the next frame is drawn without waiting.</summary>
+        protected override void OnStageChanged()
+        {
+            _redrawNow = true;
         }
 
         /// <summary>The flower itself, at head point (<paramref name="x"/>, <paramref name="y"/>).</summary>

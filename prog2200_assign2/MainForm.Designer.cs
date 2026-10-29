@@ -202,8 +202,6 @@ namespace prog2200_assign2
             this.gardenPanel.TabIndex = 1;
             this.gardenPanel.Paint += new System.Windows.Forms.PaintEventHandler(this.gardenPanel_Paint);
             this.gardenPanel.MouseClick += new System.Windows.Forms.MouseEventHandler(this.gardenPanel_MouseClick);
-            this.gardenPanel.MouseLeave += new System.EventHandler(this.gardenPanel_MouseLeave);
-            this.gardenPanel.MouseMove += new System.Windows.Forms.MouseEventHandler(this.gardenPanel_MouseMove);
             this.gardenPanel.Resize += new System.EventHandler(this.gardenPanel_Resize);
             //
             // animationTimer

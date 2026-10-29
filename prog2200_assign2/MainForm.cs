@@ -28,15 +28,15 @@ namespace prog2200_assign2
         private const int MaxBloomSize = 130;
 
         // Drifting speed range, in pixels per tick.
-        private const double MinSpeed = 0.5;
-        private const double MaxSpeed = 1.2;
-
-        // Each stem can use between this share and all of the garden's full reach, so the heads are at different heights.
-        private const double MinReachShare = 0.55;
+        private const double MinSpeed = 0.4;
+        private const double MaxSpeed = 0.9;
 
         // How far a new stem's direction can stray either side of where it was aimed, or of straight up, in radians.
         private const double AimSpread = Math.PI / 6;
-        private const double UpwardSpread = Math.PI / 3;
+        private const double UpwardSpread = Math.PI / 4;
+
+        // A right-click puts one of each kind in, fully grown, spread this many pixels around the click.
+        private const float BouquetSpread = 70f;
 
         // Pixels kept clear between the furthest a head can reach and the garden's edge, and the shortest full reach
         // a stem can have in a very small garden.
@@ -46,7 +46,7 @@ namespace prog2200_assign2
         // When the garden is made bigger, one new seedling is planted for every this many new square pixels.
         private const int AreaPerNewSeedling = 150000;
 
-        private const string RunningHint = "Click: grow a lily   Right-click: one of each   Hover the vase: a hand adds one";
+        private const string RunningHint = "Click: add a grown lily   Right-click: add one of each";
         private const string PausedHint = "Paused";
 
         // Spider lilies come in reds, pinks, golds and white. The other lilies choose their own colours.
@@ -66,12 +66,8 @@ namespace prog2200_assign2
 
         private readonly Random _random = new Random();
 
-        // The one vase every stem grows from, and the hand that puts flowers into it.
+        // The one vase every stem grows from.
         private readonly Vase _vase = new Vase();
-        private readonly ReachingHand _hand = new ReachingHand();
-
-        // Whether the mouse was over the vase last time it moved, so the hand comes once each time the mouse arrives.
-        private bool _isHoveringVase;
 
         // Read from the appSettings section of App.config.
         private readonly int _startingFlowersPerKind = ReadSetting("StartingFlowersPerKind", DefaultStartingFlowersPerKind);
@@ -210,44 +206,26 @@ namespace prog2200_assign2
         #region Garden events
 
         /// <summary>
-        /// A left-click grows one random lily from the vase towards the click; a right-click grows one of every kind
-        /// towards it.
+        /// A left-click puts a fully grown random lily into the vase with its head at the click; a right-click puts
+        /// in one of every kind, spread around the click. They carry on from full bloom to wilting, then resprout.
         /// </summary>
         private void gardenPanel_MouseClick(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
             {
-                AddFlower(RandomKind(), e.Location);
+                AddGrownFlower(RandomKind(), e.Location);
             }
             else if (e.Button == MouseButtons.Right)
             {
-                ScatterSeeds(e.Location);
+                AddGrownBouquet(e.Location);
             }
-        }
-
-        /// <summary>Sends the hand in with a new flower when the mouse moves onto the vase.</summary>
-        private void gardenPanel_MouseMove(object sender, MouseEventArgs e)
-        {
-            bool isOverVase = _vase.Contains(e.Location);
-
-            if (isOverVase && !_isHoveringVase && animationTimer.Enabled)
-            {
-                _hand.Start();
-            }
-
-            _isHoveringVase = isOverVase;
-        }
-
-        private void gardenPanel_MouseLeave(object sender, EventArgs e)
-        {
-            _isHoveringVase = false;
         }
 
         /// <summary>
         /// One animation step: every flower grows and moves (bouncing off the walls of the panel's current size and
         /// staying within reach of its stem), then flowers that are about to touch bounce off each other and wilt,
-        /// then the hand moves, then the panel is repainted. Two lilies in bloom that meet pollinate each other, and a
-        /// new lily grows from the vase towards where they met; the hand puts a new one in when it lets go.
+        /// then the panel is repainted. Two lilies in bloom that meet pollinate each other, and a new lily grows from
+        /// the vase towards where they met.
         /// </summary>
         private void animationTimer_Tick(object sender, EventArgs e)
         {
@@ -278,15 +256,10 @@ namespace prog2200_assign2
                 AddFlower(RandomKind(), Point.Round((PointF)item));
             }
 
-            if (_hand.Move(bounds, _vase.Mouth))
-            {
-                AddFlower(RandomKind(), RandomPointAboveVase());
-            }
-
             gardenPanel.Invalidate();
         }
 
-        /// <summary>Draws the stems first, then the vase over their bottoms, then the lily heads, then the hand.</summary>
+        /// <summary>Draws the stems first, then the vase over their bottoms, then the lily heads.</summary>
         private void gardenPanel_Paint(object sender, PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -304,8 +277,6 @@ namespace prog2200_assign2
                 Flower flower = (Flower)item;
                 flower.Draw(e.Graphics);
             }
-
-            _hand.Draw(e.Graphics);
         }
 
         /// <summary>
@@ -358,10 +329,50 @@ namespace prog2200_assign2
         #region Helpers
 
         /// <summary>
-        /// Creates a lily of the given kind with a random size, reach and starting colour, plants its seed in the
-        /// vase mouth with its stem heading towards <paramref name="aim"/>, and adds it to the garden.
+        /// Plants a seed of the given kind in the vase mouth, with its stem heading towards <paramref name="aim"/>.
         /// </summary>
         private void AddFlower(FlowerKind kind, Point aim)
+        {
+            Flower flower = CreateFlower(kind, aim);
+
+            flower.CenterOn(_vase.Mouth);
+            AddToGarden(flower);
+        }
+
+        /// <summary>
+        /// Puts a fully grown lily of the given kind into the vase with its head at <paramref name="head"/>.
+        /// It is in full bloom straight away and carries on from there: wilting, then resprouting from a seed.
+        /// </summary>
+        private void AddGrownFlower(FlowerKind kind, Point head)
+        {
+            Flower flower = CreateFlower(kind, head);
+
+            flower.GrowFully();
+            flower.CenterOn(head);
+            flower.KeepInside(gardenPanel.ClientRectangle);
+            AddToGarden(flower);
+        }
+
+        /// <summary>Puts one fully grown lily of every kind into the vase, with their heads spread around <paramref name="centre"/>.</summary>
+        private void AddGrownBouquet(Point centre)
+        {
+            Array kinds = Enum.GetValues(typeof(FlowerKind));
+
+            for (int i = 0; i < kinds.Length; i++)
+            {
+                double angle = i * 2 * Math.PI / kinds.Length;
+                Point head = Point.Round(new PointF(centre.X + (float)Math.Cos(angle) * BouquetSpread,
+                    centre.Y + (float)Math.Sin(angle) * BouquetSpread));
+
+                AddGrownFlower((FlowerKind)kinds.GetValue(i), head);
+            }
+        }
+
+        /// <summary>
+        /// Creates a lily of the given kind with a random size and starting colour, heading towards
+        /// <paramref name="aim"/>, with its stem tied to the vase mouth.
+        /// </summary>
+        private Flower CreateFlower(FlowerKind kind, Point aim)
         {
             PointF velocity = VelocityTowards(aim);
             float bloomSize = _random.Next(MinBloomSize, MaxBloomSize + 1);
@@ -386,10 +397,13 @@ namespace prog2200_assign2
                     throw new ArgumentOutOfRangeException("kind", kind, "Unknown kind of flower.");
             }
 
-            flower.ReachShare = (float)(MinReachShare + _random.NextDouble() * (1 - MinReachShare));
             flower.TieTo(_vase.Mouth, MaxReach());
-            flower.CenterOn(_vase.Mouth);
 
+            return flower;
+        }
+
+        private void AddToGarden(Flower flower)
+        {
             _flowers.Add((object)flower);
 
             gardenPanel.Invalidate();
@@ -439,8 +453,8 @@ namespace prog2200_assign2
         }
 
         /// <summary>
-        /// The longest a stem can reach in the current garden: far enough from the vase mouth to touch the top or
-        /// the sides, whichever is further.
+        /// The longest a stem can reach in the current garden: from the vase mouth to a top corner, so a fully grown
+        /// lily can reach the top of the garden anywhere across its width. It changes whenever the window is resized.
         /// </summary>
         private float MaxReach()
         {
@@ -448,7 +462,7 @@ namespace prog2200_assign2
             float toTop = _vase.Mouth.Y;
             float toSide = size.Width / 2f;
 
-            return Math.Max(MinReach, Math.Max(toTop, toSide) - ReachMargin);
+            return Math.Max(MinReach, (float)Math.Sqrt(toTop * toTop + toSide * toSide) - ReachMargin);
         }
 
         /// <summary>

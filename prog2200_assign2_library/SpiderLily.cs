@@ -12,7 +12,7 @@ namespace prog2200_assign2_library
     public class SpiderLily : AsciiLily
     {
         // Degrees the gradient turns each tick.
-        private const float GradientTurnPerTick = 6f;
+        private const float GradientTurnPerTick = 3f;
 
         private const int PetalCount = 6;
 

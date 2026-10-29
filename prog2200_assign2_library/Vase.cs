@@ -77,15 +77,6 @@ namespace prog2200_assign2_library
             _location = new Point(bounds.Left + (bounds.Width - Width) / 2, bounds.Bottom - Height - BottomMargin);
         }
 
-        /// <summary>Whether <paramref name="point"/> is on the vase itself (not just inside the box around it).</summary>
-        public bool Contains(Point point)
-        {
-            float across = (point.X - _location.X) / (float)Width - 0.5f;
-            float down = (point.Y - _location.Y) / (float)Height;
-
-            return down >= 0 && down <= 1 && Math.Abs(across) <= HalfWidth(down);
-        }
-
         public void Draw(Graphics graphics)
         {
             graphics.DrawImage(_bitmap, new Rectangle(_location, _bitmap.Size));
