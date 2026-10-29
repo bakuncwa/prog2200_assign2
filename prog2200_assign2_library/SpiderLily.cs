@@ -63,15 +63,17 @@ namespace prog2200_assign2_library
             {
                 float petalAngle = (float)(i * 2 * Math.PI / PetalCount - Math.PI / 2);
 
-                // A petal is a thin, tapering curve that bends round as it goes out, brightest near the centre.
+                // A petal is a thin, tapering curve that bends round as it goes out, brightest near the centre,
+                // with a brighter line down its middle.
                 if (distance < petalLength)
                 {
                     float along = distance / petalLength;
                     float centreLine = petalAngle + PetalCurl * along * along;
                     float sideways = Math.Abs(AngleBetween(angle, centreLine)) * distance;
                     float width = 0.045f * (1f - along) + 0.01f;
+                    float midrib = sideways < width * 0.3f ? 0.2f : 0f;
 
-                    intensity = Math.Max(intensity, Soft(sideways, width) * (1f - 0.45f * along));
+                    intensity = Math.Max(intensity, Soft(sideways, width) * (0.8f - 0.45f * along + midrib));
                 }
 
                 // A stamen is a thin straight line halfway between two petals, with a bright pollen dot on the end.

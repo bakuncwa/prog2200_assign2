@@ -36,6 +36,7 @@ namespace prog2200_assign2
             this.addTigerLilyMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.addLilyOfTheValleyMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.addRandomMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.scatterSeedsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.addSeparator = new System.Windows.Forms.ToolStripSeparator();
             this.pauseMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.clearMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -69,6 +70,7 @@ namespace prog2200_assign2
             this.addTigerLilyMenuItem,
             this.addLilyOfTheValleyMenuItem,
             this.addRandomMenuItem,
+            this.scatterSeedsMenuItem,
             this.addSeparator,
             this.pauseMenuItem,
             this.clearMenuItem,
@@ -117,6 +119,14 @@ namespace prog2200_assign2
             this.addRandomMenuItem.Size = new System.Drawing.Size(270, 22);
             this.addRandomMenuItem.Text = "Add &Random Lily";
             this.addRandomMenuItem.Click += new System.EventHandler(this.addRandomMenuItem_Click);
+            //
+            // scatterSeedsMenuItem
+            //
+            this.scatterSeedsMenuItem.Name = "scatterSeedsMenuItem";
+            this.scatterSeedsMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.S)));
+            this.scatterSeedsMenuItem.Size = new System.Drawing.Size(270, 22);
+            this.scatterSeedsMenuItem.Text = "Scatter S&eeds From Centre";
+            this.scatterSeedsMenuItem.Click += new System.EventHandler(this.scatterSeedsMenuItem_Click);
             //
             // addSeparator
             //
@@ -230,6 +240,7 @@ namespace prog2200_assign2
         private System.Windows.Forms.ToolStripMenuItem addTigerLilyMenuItem;
         private System.Windows.Forms.ToolStripMenuItem addLilyOfTheValleyMenuItem;
         private System.Windows.Forms.ToolStripMenuItem addRandomMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem scatterSeedsMenuItem;
         private System.Windows.Forms.ToolStripSeparator addSeparator;
         private System.Windows.Forms.ToolStripMenuItem pauseMenuItem;
         private System.Windows.Forms.ToolStripMenuItem clearMenuItem;

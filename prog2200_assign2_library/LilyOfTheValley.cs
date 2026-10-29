@@ -5,9 +5,10 @@ using System.Windows.Forms;
 namespace prog2200_assign2_library
 {
     /// <summary>
-    /// A lily of the valley - an arched stem with little bells hanging from it - drawn in ASCII and shown in a
-    /// Windows Forms <see cref="Label"/> control, a pre-existing library control used as one of the shapes.
-    /// The label is added to the panel and moved by setting its Location; its text is the character grid.
+    /// A lily of the valley - an arched stem with little bells hanging from it between two broad leaves - drawn in
+    /// ASCII and shown in a Windows Forms <see cref="Label"/> control, a pre-existing library control used as one of
+    /// the shapes. The label is added to the panel and moved by setting its Location; its text is the character grid.
+    /// It is a double-buffered Label (<see cref="BufferedLabel"/>) so its text can change every tick without flicker.
     /// Visual state change: when it bumps into another flower its colours swap for a moment.
     /// </summary>
     public class LilyOfTheValley : AsciiLily
@@ -20,26 +21,26 @@ namespace prog2200_assign2_library
         // How many straight pieces the arched stem is measured with.
         private const int StemPieces = 12;
 
-        // Where the arched stem starts in the soil, bends towards, and ends, in plant units (y measured from the soil
-        // for the start, and from the top for the others).
+        // Where the arched stem starts, bends towards and ends, in plant units (it starts in the soil).
         private const float StemStartX = -0.18f;
         private const float ArchControlX = -0.20f;
         private const float ArchControlY = -0.05f;
         private const float ArchEndX = 0.32f;
-        private const float ArchEndY = 0.50f;
+        private const float ArchEndY = 0.55f;
 
-        // Space between the art and the label's border.
-        private static readonly Padding ArtPadding = new Padding(4, 3, 4, 3);
+        // Space between the art and the label's edge.
+        private static readonly Padding ArtPadding = new Padding(2);
 
-        private static readonly Color BellColor = Color.WhiteSmoke;
-        private static readonly Color CardColor = Color.FromArgb(20, 30, 20);
+        private static readonly Font ArtFont = new Font("Consolas", 7f, FontStyle.Bold);
+        private static readonly Size ArtCell = MeasureCell();
+        private static readonly Color BellColor = Color.FromArgb(225, 240, 205);
 
         private readonly Label _label;
         private readonly Control _parent;
 
         private int _flashTicksLeft;
 
-        /// <param name="parent">The panel the label is placed on.</param>
+        /// <param name="parent">The panel the label is placed on. The label's background matches it.</param>
         public LilyOfTheValley(PointF velocity, float bloomWidth, Control parent)
             : base(velocity, BellColor, bloomWidth)
         {
@@ -49,11 +50,10 @@ namespace prog2200_assign2_library
             }
 
             _parent = parent;
-            _label = new Label
+            _label = new BufferedLabel
             {
                 AutoSize = false,
-                BorderStyle = BorderStyle.FixedSingle,
-                Font = GridFont,
+                Font = ArtFont,
                 Padding = ArtPadding,
                 TextAlign = ContentAlignment.TopLeft,
                 UseMnemonic = false
@@ -69,10 +69,10 @@ namespace prog2200_assign2_library
             get { return _label.Size; }
         }
 
-        /// <summary>A Label puts one font line between rows, so the grid has to use the same spacing.</summary>
-        protected override int RowHeight
+        /// <summary>A Label puts one font line between rows, so the grid uses the label's own character size.</summary>
+        protected override Size CellSize
         {
-            get { return CharacterSize.Height; }
+            get { return ArtCell; }
         }
 
         /// <summary>Grows and moves like every other lily, then counts down the collision flash.</summary>
@@ -96,9 +96,11 @@ namespace prog2200_assign2_library
         {
         }
 
-        /// <summary>Swaps the label's colours for <see cref="FlashTicks"/> ticks.</summary>
+        /// <summary>Wilts like every other lily, and swaps the label's colours for <see cref="FlashTicks"/> ticks.</summary>
         public override void OnCollision()
         {
+            base.OnCollision();
+
             _flashTicksLeft = FlashTicks;
             ShowColors();
         }
@@ -106,6 +108,8 @@ namespace prog2200_assign2_library
         /// <summary>Takes the label off the panel and frees it.</summary>
         public override void Remove()
         {
+            base.Remove();
+
             _parent.Controls.Remove(_label);
             _label.Dispose();
         }
@@ -120,12 +124,10 @@ namespace prog2200_assign2_library
                 return;
             }
 
-            Size artSize = TextRenderer.MeasureText(art, GridFont);
+            Size artSize = TextRenderer.MeasureText(art, ArtFont);
 
             _label.Text = art;
-
-            // The extra 2 pixels each way leave room for the single-line border.
-            _label.Size = new Size(artSize.Width + ArtPadding.Horizontal + 2, artSize.Height + ArtPadding.Vertical + 2);
+            _label.Size = new Size(artSize.Width + ArtPadding.Horizontal, artSize.Height + ArtPadding.Vertical);
         }
 
         /// <summary>Keeps the label on top of the flower's position.</summary>
@@ -134,7 +136,7 @@ namespace prog2200_assign2_library
             _label.Location = Point.Round(new PointF(X, Y));
         }
 
-        /// <summary>An arched stem that grows along its curve, with a long leaf on each side.</summary>
+        /// <summary>An arched stem that grows along its curve, between two broad leaves rising from the soil.</summary>
         protected override AsciiSample SampleStem(float x, float y)
         {
             float growth = StemGrowth;
@@ -145,27 +147,28 @@ namespace prog2200_assign2_library
             }
 
             float distance = float.MaxValue;
-            PointF previous = PointOnStem(0f);
+            PointF previous = PointOnArch(0f);
 
             for (int i = 1; i <= StemPieces; i++)
             {
-                PointF next = PointOnStem(growth * i / StemPieces);
+                PointF next = PointOnArch(growth * i / StemPieces);
                 distance = Math.Min(distance, DistanceToSegment(x, y, previous, next));
                 previous = next;
             }
 
-            AsciiSample result = new AsciiSample(Soft(distance, 0.025f) * 0.7f, StemColor);
+            AsciiSample result = new AsciiSample(Soft(distance, 0.02f) * 0.7f, StemColor);
 
             float leafGrowth = Clamp01((growth - 0.2f) / 0.5f);
 
             if (leafGrowth > 0)
             {
                 PointF leafBase = new PointF(StemStartX + 0.03f, SoilY);
-                PointF leftTip = new PointF(leafBase.X - 0.2f * leafGrowth, SoilY - 0.55f * leafGrowth);
-                PointF rightTip = new PointF(leafBase.X + 0.25f * leafGrowth, SoilY - 0.4f * leafGrowth);
-                float leaf = Math.Max(Segment(x, y, leafBase, leftTip, 0.05f), Segment(x, y, leafBase, rightTip, 0.04f));
+                PointF leftTip = new PointF(leafBase.X - 0.22f * leafGrowth, SoilY - 0.75f * leafGrowth);
+                PointF rightTip = new PointF(leafBase.X + 0.4f * leafGrowth, SoilY - 0.55f * leafGrowth);
+                float leaf = Math.Max(LeafBlade(x, y, leafBase, leftTip, 0.09f * leafGrowth, -0.1f),
+                    LeafBlade(x, y, leafBase, rightTip, 0.08f * leafGrowth, 0.15f));
 
-                result = AsciiSample.Brighter(result, new AsciiSample(leaf * 0.45f, LeafColor));
+                result = AsciiSample.Brighter(result, new AsciiSample(leaf, LeafColor));
             }
 
             return result;
@@ -203,7 +206,7 @@ namespace prog2200_assign2_library
                     continue;
                 }
 
-                PointF hook = PointOnStem(position);
+                PointF hook = PointOnArch(position);
                 float bellRadius = 0.03f + 0.04f * bellGrowth;
                 PointF bellTop = new PointF(hook.X, hook.Y + 0.1f);
                 PointF bellCentre = new PointF(hook.X, bellTop.Y + bellRadius);
@@ -226,10 +229,9 @@ namespace prog2200_assign2_library
         /// A point on the arched stem: 0 is where it leaves the soil and 1 is its tip. The arch is a curve that
         /// bends from the soil up and over to the right; it sways with the stem top and sags as the flower wilts.
         /// </summary>
-        private PointF PointOnStem(float along)
+        private PointF PointOnArch(float along)
         {
-            PointF top = StemTop;
-            float sway = top.X;
+            float sway = StemTop.X;
             float sag = Wilting * 0.15f;
 
             PointF start = new PointF(StemStartX, SoilY);
@@ -243,12 +245,22 @@ namespace prog2200_assign2_library
                 before * before * start.Y + 2 * before * along * control.Y + along * along * end.Y);
         }
 
+        /// <summary>Normally pale text on the panel's own background; flashing swaps the two.</summary>
         private void ShowColors()
         {
             bool isFlashing = _flashTicksLeft > 0;
 
-            _label.ForeColor = isFlashing ? CardColor : Color;
-            _label.BackColor = isFlashing ? Color : CardColor;
+            _label.ForeColor = isFlashing ? _parent.BackColor : Color;
+            _label.BackColor = isFlashing ? Color : _parent.BackColor;
+        }
+
+        /// <summary>Width of one character and height of one line of <see cref="ArtFont"/> as a Label draws it.</summary>
+        private static Size MeasureCell()
+        {
+            const string sample = "MMMMMMMMMM";
+            Size size = TextRenderer.MeasureText(sample, ArtFont, System.Drawing.Size.Empty, TextFormatFlags.NoPadding);
+
+            return new Size((int)Math.Round(size.Width / (float)sample.Length), size.Height);
         }
     }
 }

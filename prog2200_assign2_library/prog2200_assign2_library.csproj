@@ -38,9 +38,11 @@
   <ItemGroup>
     <Compile Include="AsciiLily.cs" />
     <Compile Include="AsciiSample.cs" />
+    <Compile Include="BufferedLabel.cs" />
     <Compile Include="CallaLily.cs" />
     <Compile Include="CollisionDetector.cs" />
     <Compile Include="Flower.cs" />
+    <Compile Include="GlyphAtlas.cs" />
     <Compile Include="GrowthStage.cs" />
     <Compile Include="LilyOfTheValley.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

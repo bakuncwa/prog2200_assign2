@@ -19,17 +19,21 @@ namespace prog2200_assign2
     {
         // Used when App.config does not set a value.
         private const int DefaultTickIntervalMs = 30;
-        private const int DefaultStartingFlowersPerKind = 2;
+        private const int DefaultStartingFlowersPerKind = 1;
+        private const int DefaultMaxFlowers = 16;
 
         // Full-bloom width range for the lilies, in pixels.
-        private const int MinBloomSize = 70;
-        private const int MaxBloomSize = 110;
+        private const int MinBloomSize = 110;
+        private const int MaxBloomSize = 160;
 
-        // Speed range, in pixels per tick.
-        private const double MinSpeed = 1.5;
-        private const double MaxSpeed = 4.0;
+        // Drifting speed range, in pixels per tick.
+        private const double MinSpeed = 0.6;
+        private const double MaxSpeed = 1.6;
 
-        private const string RunningHint = "Click the garden to plant a random lily";
+        // When the garden is made bigger, one new seedling is planted for every this many new square pixels.
+        private const int AreaPerNewSeedling = 150000;
+
+        private const string RunningHint = "Left-click: plant a seed   Right-click: scatter seeds";
         private const string PausedHint = "Paused";
 
         // Spider lilies come in reds, pinks, golds and white. The other lilies choose their own colours.
@@ -52,6 +56,13 @@ namespace prog2200_assign2
         // Read from the appSettings section of App.config.
         private readonly int _startingFlowersPerKind = ReadSetting("StartingFlowersPerKind", DefaultStartingFlowersPerKind);
 
+        // Lilies that sprout by themselves (from pollination or a bigger window) stop once the garden holds this many.
+        private readonly int _maxFlowers = ReadSetting("MaxFlowers", DefaultMaxFlowers);
+
+        // Garden area at the last resize, and new area added since the last seedling was planted for it.
+        private int _lastGardenArea;
+        private int _grownGardenArea;
+
         // How the window looked before going full screen, so it can be put back.
         private FormBorderStyle _windowedBorderStyle;
         private FormWindowState _windowedState;
@@ -73,8 +84,9 @@ namespace prog2200_assign2
         }
 
         /// <summary>
-        /// Plants the first flowers and starts the animation. Done here rather than in the constructor
-        /// because the panel only has its real size once the window is on screen.
+        /// Plants the first seeds, all at one point in the middle of the garden so they scatter outwards from there,
+        /// and starts the animation. Done here rather than in the constructor because the panel only has its real
+        /// size once the window is on screen.
         /// </summary>
         protected override void OnShown(EventArgs e)
         {
@@ -82,11 +94,10 @@ namespace prog2200_assign2
 
             for (int i = 0; i < _startingFlowersPerKind; i++)
             {
-                foreach (FlowerKind kind in Enum.GetValues(typeof(FlowerKind)))
-                {
-                    AddFlower(kind, RandomPointInGarden());
-                }
+                ScatterSeeds(GardenCentre());
             }
+
+            _lastGardenArea = GardenArea();
 
             animationTimer.Start();
             UpdateStatus();
@@ -138,6 +149,11 @@ namespace prog2200_assign2
             AddFlower(RandomKind(), RandomPointInGarden());
         }
 
+        private void scatterSeedsMenuItem_Click(object sender, EventArgs e)
+        {
+            ScatterSeeds(GardenCentre());
+        }
+
         private void pauseMenuItem_Click(object sender, EventArgs e)
         {
             animationTimer.Enabled = !animationTimer.Enabled;
@@ -172,18 +188,26 @@ namespace prog2200_assign2
 
         #region Garden events
 
-        /// <summary>Plants a random lily wherever the garden is clicked.</summary>
+        /// <summary>
+        /// A left-click plants one random seed where the garden is clicked; a right-click scatters one seed of every
+        /// kind from that point.
+        /// </summary>
         private void gardenPanel_MouseClick(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
             {
                 AddFlower(RandomKind(), e.Location);
             }
+            else if (e.Button == MouseButtons.Right)
+            {
+                ScatterSeeds(e.Location);
+            }
         }
 
         /// <summary>
         /// One animation step: every flower grows and moves (bouncing off the walls of the panel's current size),
-        /// then flowers that overlap bounce off each other, then the panel is repainted.
+        /// then flowers that are about to touch bounce off each other and wilt, then the panel is repainted.
+        /// Two lilies in bloom that meet pollinate each other, and a new seedling is planted between them.
         /// </summary>
         private void animationTimer_Tick(object sender, EventArgs e)
         {
@@ -202,7 +226,17 @@ namespace prog2200_assign2
                 flower.Move(bounds);
             }
 
-            CollisionDetector.BounceOffEachOther(_flowers);
+            ArrayList pollinationPoints = CollisionDetector.BounceOffEachOther(_flowers);
+
+            foreach (object item in pollinationPoints)
+            {
+                if (_flowers.Count >= _maxFlowers)
+                {
+                    break;
+                }
+
+                AddFlower(RandomKind(), Point.Round((PointF)item));
+            }
 
             gardenPanel.Invalidate();
         }
@@ -218,7 +252,10 @@ namespace prog2200_assign2
             }
         }
 
-        /// <summary>When the window shrinks, pulls any flower that is now past an edge back inside.</summary>
+        /// <summary>
+        /// When the window shrinks, pulls any flower that is now past an edge back inside. When it grows, new
+        /// seedlings sprout in the extra space: one for every <see cref="AreaPerNewSeedling"/> square pixels.
+        /// </summary>
         private void gardenPanel_Resize(object sender, EventArgs e)
         {
             Rectangle bounds = gardenPanel.ClientRectangle;
@@ -233,6 +270,27 @@ namespace prog2200_assign2
                 Flower flower = (Flower)item;
                 flower.KeepInside(bounds);
             }
+
+            // Nothing is planted for the resizes that happen while the window is first laid out.
+            if (_lastGardenArea == 0)
+            {
+                return;
+            }
+
+            int area = GardenArea();
+
+            if (area > _lastGardenArea)
+            {
+                _grownGardenArea += area - _lastGardenArea;
+
+                while (_grownGardenArea >= AreaPerNewSeedling && _flowers.Count < _maxFlowers)
+                {
+                    _grownGardenArea -= AreaPerNewSeedling;
+                    AddFlower(RandomKind(), RandomPointInGarden());
+                }
+            }
+
+            _lastGardenArea = area;
         }
 
         #endregion
@@ -240,7 +298,7 @@ namespace prog2200_assign2
         #region Helpers
 
         /// <summary>
-        /// Creates a lily of the given kind with a random size, direction and starting colour, centres it on
+        /// Creates a lily of the given kind with a random size, direction and starting colour, centres its seed on
         /// <paramref name="center"/> (kept inside the panel) and adds it to the garden.
         /// </summary>
         private void AddFlower(FlowerKind kind, Point center)
@@ -277,6 +335,15 @@ namespace prog2200_assign2
             UpdateStatus();
         }
 
+        /// <summary>Plants one seed of every kind at <paramref name="point"/>; they drift apart in different directions.</summary>
+        private void ScatterSeeds(Point point)
+        {
+            foreach (FlowerKind kind in Enum.GetValues(typeof(FlowerKind)))
+            {
+                AddFlower(kind, point);
+            }
+        }
+
         private FlowerKind RandomKind()
         {
             return (FlowerKind)_random.Next(Enum.GetValues(typeof(FlowerKind)).Length);
@@ -285,6 +352,20 @@ namespace prog2200_assign2
         private Color RandomSpiderLilyColor()
         {
             return SpiderLilyColors[_random.Next(SpiderLilyColors.Length)];
+        }
+
+        private Point GardenCentre()
+        {
+            Size size = gardenPanel.ClientSize;
+
+            return new Point(size.Width / 2, size.Height / 2);
+        }
+
+        private int GardenArea()
+        {
+            Size size = gardenPanel.ClientSize;
+
+            return size.Width * size.Height;
         }
 
         private Point RandomPointInGarden()

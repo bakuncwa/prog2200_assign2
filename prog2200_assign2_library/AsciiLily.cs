@@ -1,16 +1,19 @@
 using System;
 using System.Drawing;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 using System.Text;
-using System.Windows.Forms;
 
 namespace prog2200_assign2_library
 {
     /// <summary>
     /// Base class for a lily drawn as ASCII art the way TouchDesigner's ASCII effect works: the plant is
     /// described as a brightness field, the field is sampled on a grid of character cells, and each cell shows
-    /// the character from <see cref="Ramp"/> that matches its brightness (dark " " up to bright "@").
+    /// the character from <see cref="Ramp"/> that matches its brightness (dark " " up to bright "@"). The characters
+    /// are copied out of a <see cref="GlyphAtlas"/> into one bitmap per lily, which is drawn in a single call.
     /// Every lily grows as a whole plant: a seed in the soil sprouts a stem, leaves unfold, a bud swells on top
-    /// and opens into the flower, then the flower droops and browns before it reseeds.
+    /// and opens into the flower, then the flower crumbles away and browns as it falls, before it resprouts.
+    /// Grain, dark specks and stray flickering "data" characters give it the look of a TouchDesigner render.
     /// </summary>
     /// <remarks>
     /// The plant is described in "plant units": x runs from -0.5 (left edge) to 0.5 (right edge) and y runs
@@ -21,48 +24,45 @@ namespace prog2200_assign2_library
         // Characters from empty to brightest.
         private const string DefaultRamp = " .:-=+*#%@";
 
-        // Plant height compared to its width.
-        private const float HeightToWidth = 1.35f;
+        // Characters for the stray "data" bits that flicker in the empty space around a lily.
+        private const string DataGlyphs = "-.:'|";
 
-        // Fewest columns and rows the grid can shrink to, so a seed still shows.
-        private const int MinColumns = 5;
-        private const int MinRows = 3;
+        // Plant height compared to its width.
+        private const float HeightToWidth = 1.5f;
+
+        // Fewest columns and rows the grid can shrink to, so a seed still shows. Columns must be odd.
+        private const int MinColumns = 7;
+        private const int MinRows = 5;
 
         // Each cell is sampled on a small grid of points and the results blended, like downsampling an image.
         private const int SamplesAcross = 2;
-        private const int SamplesDown = 3;
-
-        // Rows are drawn a little closer together than the font's line height so the cells are closer to square.
-        private const float RowSpacing = 0.8f;
+        private const int SamplesDown = 2;
 
         // Stem sway: radians per tick, and how far the top of the stem moves in plant units.
-        private const float SwaySpeed = 0.04f;
-        private const float SwayAmount = 0.04f;
+        private const float SwaySpeed = 0.035f;
+        private const float SwayAmount = 0.035f;
 
         // How far the top of the stem droops while the flower wilts, in plant units.
-        private const float DroopAcross = 0.16f;
-        private const float DroopDown = 0.10f;
+        private const float DroopAcross = 0.14f;
+        private const float DroopDown = 0.08f;
 
-        private const float StemRadius = 0.025f;
-        private const float LeafRadius = 0.03f;
+        private const float StemRadius = 0.016f;
 
-        // Wilting colour is shown in steps so neighbouring cells share a colour and can be drawn together.
+        // Fraction of cells that get a dark speck, like the texture in a TouchDesigner noise render.
+        private const float SpeckChance = 0.08f;
+
+        // How many ticks the stray data characters stay in one place before they jump somewhere else.
+        private const int DataGlyphTicks = 6;
+
+        // Wilting colour is shown in steps so the colours stay few.
         private const int WiltColorSteps = 4;
 
-        private const TextFormatFlags CellFormat = TextFormatFlags.NoPadding;
+        /// <summary>Colours shared by every lily's stem and leaves: pale greens, like the reference render.</summary>
+        protected static readonly Color StemColor = Color.FromArgb(120, 170, 90);
+        protected static readonly Color LeafColor = Color.FromArgb(165, 205, 120);
 
-        /// <summary>Font every lily's characters are drawn in. It must be monospaced so the cells line up.</summary>
-        protected static readonly Font GridFont = new Font("Consolas", 7f, FontStyle.Bold);
-
-        /// <summary>Width and height of one character of <see cref="GridFont"/>, in pixels.</summary>
-        protected static readonly Size CharacterSize = MeasureCharacter();
-
-        /// <summary>Colours shared by every lily's stem and leaves.</summary>
-        protected static readonly Color StemColor = Color.ForestGreen;
-        protected static readonly Color LeafColor = Color.YellowGreen;
-
-        private static readonly Color SoilColor = Color.Sienna;
-        private static readonly Color SeedColor = Color.BurlyWood;
+        private static readonly Color SoilColor = Color.FromArgb(150, 110, 70);
+        private static readonly Color SeedColor = Color.FromArgb(215, 195, 140);
         private static readonly Color WiltColor = Color.FromArgb(150, 110, 60);
 
         // Full-bloom width in pixels.
@@ -71,9 +71,17 @@ namespace prog2200_assign2_library
         // Starting point of the sway, so lilies planted together do not sway in step.
         private readonly float _swayPhase;
 
+        // Makes each lily's grain and specks different.
+        private readonly int _noiseSeed;
+
         private char[,] _characters;
         private Color[,] _colors;
         private int _ticksAlive;
+
+        // The characters copied into pixels, and whether that copy is up to date with the character grid.
+        private Bitmap _bitmap;
+        private int[] _pixels;
+        private bool _bitmapIsCurrent;
 
         // Set each time the plant is rasterized: plant units covered by one column and one row, the plant's height
         // in plant units and its width in pixels.
@@ -87,6 +95,7 @@ namespace prog2200_assign2_library
         {
             _bloomWidth = bloomWidth;
             _swayPhase = velocity.X + velocity.Y;
+            _noiseSeed = (int)(velocity.X * 7919) ^ (int)(velocity.Y * 104729);
         }
 
         /// <summary>The size of the character grid, which grows with the plant.</summary>
@@ -94,8 +103,9 @@ namespace prog2200_assign2_library
         {
             get
             {
-                Size grid = GridSize();
-                return new SizeF(grid.Width * CharacterSize.Width, grid.Height * RowHeight);
+                Size grid = GridSize(GrowthScale);
+                Size cell = CellSize;
+                return new SizeF(grid.Width * cell.Width, grid.Height * cell.Height);
             }
         }
 
@@ -105,10 +115,10 @@ namespace prog2200_assign2_library
             get { return DefaultRamp; }
         }
 
-        /// <summary>Pixels from one row of characters to the next.</summary>
-        protected virtual int RowHeight
+        /// <summary>Size of one character cell, in pixels.</summary>
+        protected virtual Size CellSize
         {
-            get { return (int)Math.Round(CharacterSize.Height * RowSpacing); }
+            get { return new Size(GlyphAtlas.CellWidth, GlyphAtlas.CellHeight); }
         }
 
         /// <summary>How far down from the top the stem ends (and the flower sits) once it is fully grown, in plant units.</summary>
@@ -171,7 +181,7 @@ namespace prog2200_assign2_library
             }
         }
 
-        /// <summary>How far through wilting the flower is, from 0 (fresh) to 1 (about to drop its seed).</summary>
+        /// <summary>How far through wilting the flower is, from 0 (fresh) to 1 (about to resprout).</summary>
         protected float Wilting
         {
             get { return Stage == GrowthStage.Wilt ? StageProgress : 0f; }
@@ -216,10 +226,7 @@ namespace prog2200_assign2_library
             }
         }
 
-        /// <summary>
-        /// Draws the character grid. Neighbouring characters of the same colour are drawn as one string,
-        /// which is much faster than drawing every character on its own.
-        /// </summary>
+        /// <summary>Draws the lily's bitmap of characters, bringing it up to date first if the grid has changed.</summary>
         public override void Draw(Graphics graphics)
         {
             if (_characters == null)
@@ -227,53 +234,33 @@ namespace prog2200_assign2_library
                 return;
             }
 
-            int rows = _characters.GetLength(0);
-            int columns = _characters.GetLength(1);
-            int rowHeight = RowHeight;
-            char[] run = new char[columns];
-
-            for (int row = 0; row < rows; row++)
+            if (!_bitmapIsCurrent)
             {
-                int column = 0;
+                ComposeBitmap();
+            }
 
-                while (column < columns)
-                {
-                    if (_characters[row, column] == ' ')
-                    {
-                        column++;
-                        continue;
-                    }
+            int width = _characters.GetLength(1) * GlyphAtlas.CellWidth;
+            int height = _characters.GetLength(0) * GlyphAtlas.CellHeight;
+            Rectangle destination = new Rectangle((int)Math.Round(X), (int)Math.Round(Y), width, height);
 
-                    int start = column;
-                    int last = column;
-                    int runColor = _colors[row, column].ToArgb();
+            graphics.DrawImage(_bitmap, destination, new Rectangle(0, 0, width, height), GraphicsUnit.Pixel);
+        }
 
-                    // Spaces do not show a colour, so they can sit inside a run of any colour.
-                    while (column < columns &&
-                        (_characters[row, column] == ' ' || _colors[row, column].ToArgb() == runColor))
-                    {
-                        run[column - start] = _characters[row, column];
-
-                        if (_characters[row, column] != ' ')
-                        {
-                            last = column;
-                        }
-
-                        column++;
-                    }
-
-                    Point position = Point.Round(new PointF(X + start * CharacterSize.Width, Y + row * rowHeight));
-
-                    TextRenderer.DrawText(graphics, new string(run, 0, last - start + 1), GridFont, position,
-                        _colors[row, start], CellFormat);
-                }
+        /// <summary>Frees the bitmap.</summary>
+        public override void Remove()
+        {
+            if (_bitmap != null)
+            {
+                _bitmap.Dispose();
+                _bitmap = null;
             }
         }
 
         /// <summary>Samples the plant on the character grid and stores the character and colour for every cell.</summary>
         protected void Rasterize()
         {
-            Size grid = GridSize();
+            Size grid = GridSize(GrowthScale);
+            Size cell = CellSize;
 
             if (_characters == null || _characters.GetLength(0) != grid.Height || _characters.GetLength(1) != grid.Width)
             {
@@ -282,26 +269,45 @@ namespace prog2200_assign2_library
             }
 
             _columnUnit = 1f / grid.Width;
-            _rowUnit = _columnUnit * RowHeight / CharacterSize.Width;
+            _rowUnit = _columnUnit * cell.Height / cell.Width;
             _plantHeight = grid.Height * _rowUnit;
-            _plantWidthPixels = grid.Width * CharacterSize.Width;
+            _plantWidthPixels = grid.Width * cell.Width;
 
             string ramp = Ramp;
             float wilt = (float)Math.Round(Wilting * WiltColorSteps) / WiltColorSteps;
+            int dataTick = _ticksAlive / DataGlyphTicks;
 
             for (int row = 0; row < grid.Height; row++)
             {
                 for (int column = 0; column < grid.Width; column++)
                 {
-                    AsciiSample cell = SampleCell(column, row);
-                    float brightness = Clamp01(cell.Intensity * (1f - 0.3f * wilt));
-                    int level = (int)Math.Round(brightness * (ramp.Length - 1));
+                    // Measured from the bottom middle so the texture stays on the same part of the plant as it grows.
+                    int fromCentre = column - grid.Width / 2;
+                    int fromSoil = grid.Height - 1 - row;
 
-                    _characters[row, column] = ramp[level];
-                    _colors[row, column] = Blend(cell.Color, WiltColor, wilt * 0.8f);
+                    AsciiSample sample = SampleCell(column, row);
+                    float brightness = Texture(sample.Intensity, fromCentre, fromSoil, wilt);
+                    int level = (int)Math.Round(brightness * (ramp.Length - 1));
+                    char glyph;
+
+                    if (level > 0)
+                    {
+                        _characters[row, column] = ramp[level];
+                        _colors[row, column] = Shade(Blend(sample.Color, WiltColor, wilt * 0.8f), brightness);
+                    }
+                    else if (TryDataGlyph(fromCentre, fromSoil, dataTick, out glyph))
+                    {
+                        _characters[row, column] = glyph;
+                        _colors[row, column] = Shade(Color, 0f);
+                    }
+                    else
+                    {
+                        _characters[row, column] = ' ';
+                    }
                 }
             }
 
+            _bitmapIsCurrent = false;
             OnRasterized();
         }
 
@@ -334,7 +340,10 @@ namespace prog2200_assign2_library
         /// <summary>The flower itself, at plant point (<paramref name="x"/>, <paramref name="y"/>).</summary>
         protected abstract AsciiSample SampleBloom(float x, float y);
 
-        /// <summary>A stem rising from the soil to <see cref="StemTop"/>, bending as it sways, with a leaf on each side.</summary>
+        /// <summary>
+        /// A stem rising from the soil to <see cref="StemTop"/>, bending as it sways, with a leaf on each side
+        /// (the lower one first) and a small twig near the soil.
+        /// </summary>
         protected virtual AsciiSample SampleStem(float x, float y)
         {
             if (StemGrowth <= 0)
@@ -352,23 +361,26 @@ namespace prog2200_assign2_library
                 float along = (soilY - y) / Math.Max(soilY - top.Y, 0.0001f);
                 float stemX = top.X * along * along;
 
-                result = new AsciiSample(Soft(Math.Abs(x - stemX), StemRadius) * 0.75f, StemColor);
+                // Slightly brighter nodes every so often along the stem.
+                float node = Math.Abs((float)Math.Sin((soilY - y) * 40f));
+
+                result = new AsciiSample(Soft(Math.Abs(x - stemX), StemRadius) * (0.7f + 0.25f * node), StemColor);
             }
 
-            // Leaves unfold once the stem is a quarter grown.
-            float leafGrowth = Clamp01((StemGrowth - 0.25f) / 0.4f);
+            result = AsciiSample.Brighter(result, SampleLeaf(x, y, 0.30f, -1, 0.36f, 0.25f));
+            result = AsciiSample.Brighter(result, SampleLeaf(x, y, 0.50f, 1, 0.30f, 0.45f));
 
-            if (leafGrowth > 0)
+            // A thin twig with a tiny leaf, low down on the stem.
+            float twigGrowth = Clamp01((StemGrowth - 0.35f) / 0.3f);
+
+            if (twigGrowth > 0)
             {
-                PointF leafBase = new PointF(top.X * 0.09f, soilY - (soilY - top.Y) * 0.3f);
+                PointF twigBase = PointOnStem(0.1f);
+                PointF twigTip = new PointF(twigBase.X + 0.16f * twigGrowth, twigBase.Y - 0.06f * twigGrowth);
+                float twig = Math.Max(Segment(x, y, twigBase, twigTip, 0.008f) * 0.55f,
+                    LeafBlade(x, y, twigTip, new PointF(twigTip.X + 0.1f * twigGrowth, twigTip.Y - 0.01f), 0.015f, 0f));
 
-                for (int side = -1; side <= 1; side += 2)
-                {
-                    PointF leafTip = new PointF(leafBase.X + side * 0.22f * leafGrowth, leafBase.Y - 0.14f * leafGrowth);
-                    float leaf = Segment(x, y, leafBase, leafTip, LeafRadius) * 0.55f;
-
-                    result = AsciiSample.Brighter(result, new AsciiSample(leaf, LeafColor));
-                }
+                result = AsciiSample.Brighter(result, new AsciiSample(twig, StemColor));
             }
 
             return result;
@@ -391,7 +403,62 @@ namespace prog2200_assign2_library
             float dy = (y - (top.Y - radiusY * 0.8f)) / radiusY;
             float distance = (float)Math.Sqrt(dx * dx + dy * dy);
 
-            return new AsciiSample(Clamp01((1f - distance) * 3f) * 0.9f, Blend(LeafColor, Color, bud));
+            // Faint lines down the bud where the petals overlap.
+            float seam = Math.Abs(dx) < 0.15f ? 0.15f : 0f;
+
+            return new AsciiSample(Clamp01((1f - distance) * 3f) * (0.75f + seam), Blend(LeafColor, Color, bud));
+        }
+
+        /// <summary>The point <paramref name="along"/> of the way up the stem (0 = soil, 1 = top).</summary>
+        protected PointF PointOnStem(float along)
+        {
+            PointF top = StemTop;
+            float soilY = SoilY;
+
+            return new PointF(top.X * along * along, soilY - (soilY - top.Y) * along);
+        }
+
+        /// <summary>
+        /// Brightness of a leaf blade from <paramref name="start"/> to <paramref name="end"/>: pointed at both ends,
+        /// widest in the middle, arching upwards by <paramref name="arch"/> of its length, with a bright midrib and
+        /// faint veins angled out from it.
+        /// </summary>
+        protected float LeafBlade(float x, float y, PointF start, PointF end, float halfWidth, float arch)
+        {
+            float axisX = end.X - start.X;
+            float axisY = end.Y - start.Y;
+            float length = (float)Math.Sqrt(axisX * axisX + axisY * axisY);
+
+            if (length <= 0)
+            {
+                return 0f;
+            }
+
+            float unitX = axisX / length;
+            float unitY = axisY / length;
+            float along = ((x - start.X) * unitX + (y - start.Y) * unitY) / length;
+
+            if (along <= 0 || along >= 1)
+            {
+                return 0f;
+            }
+
+            // Lower the point by the arch instead of raising the leaf, then measure across the straight line.
+            float bow = arch * length * (float)Math.Sin(Math.PI * along);
+            float across = Math.Abs(-(x - start.X) * unitY + (y + bow - start.Y) * unitX);
+            float half = halfWidth * (float)Math.Pow(Math.Sin(Math.PI * along), 0.7);
+            float edge = Soft(across, half);
+
+            if (edge <= 0)
+            {
+                return 0f;
+            }
+
+            float midrib = Soft(across, half * 0.15f) * 0.95f;
+            float vein = Math.Sin(along * length * 90 - across * 60) > 0.85 ? 0.15f : 0f;
+            float blade = 0.6f + 0.25f * (1f - across / Math.Max(half, 0.0001f)) + vein;
+
+            return edge * Math.Max(blade, midrib);
         }
 
         /// <summary>
@@ -474,14 +541,17 @@ namespace prog2200_assign2_library
         }
 
         /// <summary>
-        /// Columns and rows in the grid right now. The column count is kept odd so the stem sits in the middle column.
+        /// Columns and rows in the grid when the plant is at <paramref name="scale"/> of its full-bloom size.
+        /// The column count is kept odd so the stem sits in the middle column.
         /// </summary>
-        private Size GridSize()
+        private Size GridSize(float scale)
         {
-            int columns = (int)Math.Round(_bloomWidth * GrowthScale / CharacterSize.Width) | 1;
+            Size cell = CellSize;
+
+            int columns = (int)Math.Round(_bloomWidth * scale / cell.Width) | 1;
             columns = Math.Max(MinColumns, columns);
 
-            int rows = (int)Math.Round(columns * CharacterSize.Width * HeightToWidth / RowHeight);
+            int rows = (int)Math.Round(columns * cell.Width * HeightToWidth / cell.Height);
             rows = Math.Max(MinRows, rows);
 
             return new Size(columns, rows);
@@ -523,6 +593,25 @@ namespace prog2200_assign2_library
             return AsciiSample.Brighter(result, SampleBloom(x, y));
         }
 
+        /// <summary>
+        /// A leaf growing out of the stem <paramref name="along"/> of the way up, reaching out to one side
+        /// (-1 = left, 1 = right). It starts to unfold once the stem is <paramref name="startsAt"/> grown.
+        /// </summary>
+        private AsciiSample SampleLeaf(float x, float y, float along, int side, float length, float startsAt)
+        {
+            float growth = Clamp01((StemGrowth - startsAt) / 0.35f);
+
+            if (growth <= 0)
+            {
+                return AsciiSample.Empty;
+            }
+
+            PointF leafBase = PointOnStem(along);
+            PointF leafTip = new PointF(leafBase.X + side * length * growth, leafBase.Y - length * 0.3f * growth);
+
+            return new AsciiSample(LeafBlade(x, y, leafBase, leafTip, 0.1f * growth, 0.3f), LeafColor);
+        }
+
         /// <summary>A strip of soil along the bottom row, with the seed in it that fades as the sprout grows.</summary>
         private AsciiSample SampleSoilAndSeed(float x, float y)
         {
@@ -547,12 +636,149 @@ namespace prog2200_assign2_library
             return result;
         }
 
-        private static Size MeasureCharacter()
+        /// <summary>
+        /// Adds grain and dark specks to a cell's brightness, and while wilting makes bits of the plant drop away
+        /// and the rest fade.
+        /// </summary>
+        private float Texture(float brightness, int fromCentre, int fromSoil, float wilt)
         {
-            const string sample = "MMMMMMMMMM";
-            Size size = TextRenderer.MeasureText(sample, GridFont, System.Drawing.Size.Empty, CellFormat);
+            if (brightness <= 0)
+            {
+                return 0f;
+            }
 
-            return new Size((int)Math.Round(size.Width / (float)sample.Length), size.Height);
+            float grain = Hash(fromCentre, fromSoil, _noiseSeed);
+
+            brightness *= 0.8f + 0.2f * grain;
+
+            if (grain < SpeckChance && brightness > 0.35f)
+            {
+                brightness *= 0.45f;
+            }
+
+            if (wilt > 0 && Hash(fromCentre, fromSoil, _noiseSeed + 1) < wilt * 0.7f)
+            {
+                return 0f;
+            }
+
+            return Clamp01(brightness * (1f - 0.3f * wilt));
+        }
+
+        /// <summary>
+        /// Whether an empty cell shows a stray data character right now. They come in short horizontal runs, which
+        /// move every few ticks, and there are more of them while the lily is in bloom.
+        /// </summary>
+        private bool TryDataGlyph(int fromCentre, int fromSoil, int tick, out char glyph)
+        {
+            float runChance = 0.02f + 0.05f * BloomOpen;
+            bool inRun = Hash(fromCentre >> 2, fromSoil, tick + _noiseSeed) < runChance;
+
+            if (!inRun || Hash(fromCentre, fromSoil, tick) < 0.35f)
+            {
+                glyph = ' ';
+                return false;
+            }
+
+            glyph = DataGlyphs[(int)(Hash(fromCentre, fromSoil, tick + 7) * DataGlyphs.Length)];
+            return true;
+        }
+
+        /// <summary>Copies every cell's character out of the glyph atlas, tinted with the cell's colour, into the bitmap.</summary>
+        private void ComposeBitmap()
+        {
+            int rows = _characters.GetLength(0);
+            int columns = _characters.GetLength(1);
+            int width = columns * GlyphAtlas.CellWidth;
+            int height = rows * GlyphAtlas.CellHeight;
+
+            if (_bitmap == null || _bitmap.Width < width || _bitmap.Height < height)
+            {
+                // Made big enough for the plant in full bloom, so it rarely has to be made again.
+                Size fullGrid = GridSize(1f);
+
+                if (_bitmap != null)
+                {
+                    _bitmap.Dispose();
+                }
+
+                _bitmap = new Bitmap(Math.Max(width, fullGrid.Width * GlyphAtlas.CellWidth),
+                    Math.Max(height, fullGrid.Height * GlyphAtlas.CellHeight), PixelFormat.Format32bppPArgb);
+                _pixels = new int[_bitmap.Width * _bitmap.Height];
+            }
+
+            Array.Clear(_pixels, 0, _pixels.Length);
+
+            int stride = _bitmap.Width;
+
+            for (int row = 0; row < rows; row++)
+            {
+                for (int column = 0; column < columns; column++)
+                {
+                    if (_characters[row, column] == ' ')
+                    {
+                        continue;
+                    }
+
+                    byte[] mask = GlyphAtlas.GetMask(_characters[row, column]);
+                    Color color = _colors[row, column];
+                    int topLeft = row * GlyphAtlas.CellHeight * stride + column * GlyphAtlas.CellWidth;
+
+                    for (int y = 0; y < GlyphAtlas.CellHeight; y++)
+                    {
+                        for (int x = 0; x < GlyphAtlas.CellWidth; x++)
+                        {
+                            int alpha = mask[y * GlyphAtlas.CellWidth + x];
+
+                            if (alpha == 0)
+                            {
+                                continue;
+                            }
+
+                            // Premultiplied alpha: each colour channel is already scaled by the coverage.
+                            _pixels[topLeft + y * stride + x] = (alpha << 24) | (color.R * alpha / 255 << 16) |
+                                (color.G * alpha / 255 << 8) | (color.B * alpha / 255);
+                        }
+                    }
+                }
+            }
+
+            BitmapData data = _bitmap.LockBits(new Rectangle(0, 0, _bitmap.Width, _bitmap.Height),
+                ImageLockMode.WriteOnly, PixelFormat.Format32bppPArgb);
+
+            try
+            {
+                Marshal.Copy(_pixels, 0, data.Scan0, _pixels.Length);
+            }
+            finally
+            {
+                _bitmap.UnlockBits(data);
+            }
+
+            _bitmapIsCurrent = true;
+        }
+
+        /// <summary>Dim, normal or highlighted version of a colour depending on how bright the cell is.</summary>
+        private static Color Shade(Color color, float brightness)
+        {
+            if (brightness < 0.4f)
+            {
+                return Blend(color, Color.Black, 0.45f);
+            }
+
+            return brightness < 0.75f ? color : Blend(color, Color.White, 0.35f);
+        }
+
+        /// <summary>A repeatable pseudo-random number from 0 up to (not including) 1 for three whole numbers.</summary>
+        private static float Hash(int x, int y, int z)
+        {
+            unchecked
+            {
+                uint hash = (uint)(x * 73856093) ^ (uint)(y * 19349663) ^ (uint)(z * 83492791);
+                hash ^= hash >> 13;
+                hash *= 0x5bd1e995;
+                hash ^= hash >> 15;
+                return (hash & 0xFFFFFF) / 16777216f;
+            }
         }
     }
 }

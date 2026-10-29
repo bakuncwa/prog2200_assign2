@@ -133,12 +133,15 @@ namespace prog2200_assign2_library
                 edgeDistance = Math.Min(edgeDistance, DistanceToSegment(outlineX, outlineY, start, end) * scale);
             }
 
-            // The edge is the brightest part; inside, the spathe is lit from the left.
+            // The edge is the brightest part; inside, the spathe is lit from the left and has faint veins
+            // running up towards the lip.
             float intensity = Soft(edgeDistance, EdgeRadius) * 0.95f;
 
             if (OutlinePath.IsVisible(outlineX, outlineY))
             {
-                intensity = Math.Max(intensity, 0.3f + 0.35f * (1f - outlineX));
+                float vein = Math.Sin(outlineX * 40 + outlineY * 8) > 0.7 ? 0.12f : 0f;
+
+                intensity = Math.Max(intensity, 0.45f + 0.35f * (1f - outlineX) + vein);
             }
 
             AsciiSample spathe = new AsciiSample(intensity, Color);

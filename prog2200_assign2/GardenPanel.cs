@@ -10,8 +10,10 @@ namespace prog2200_assign2
     {
         public GardenPanel()
         {
-            // Paint into an off-screen buffer first so the flowers do not flicker while they move.
+            // Paint into an off-screen buffer first so the flowers do not flicker while they move, and skip the
+            // separate background erase (the buffered paint covers the whole panel anyway).
             DoubleBuffered = true;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
 
             // Repaint the whole panel when it is resized, not just the newly uncovered strip.
             ResizeRedraw = true;

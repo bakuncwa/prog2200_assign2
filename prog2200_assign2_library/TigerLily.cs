@@ -77,7 +77,7 @@ namespace prog2200_assign2_library
                 }
 
                 // The petal gets brighter towards the tip, where it curls back on itself.
-                float petal = Soft(distance, petalEdge) * (0.4f + 0.55f * Clamp01(along) * Clamp01(along));
+                float petal = Soft(distance, petalEdge) * (0.5f + 0.45f * Clamp01(along) * Clamp01(along));
                 result = new AsciiSample(petal, Color);
             }
 
