@@ -10,7 +10,7 @@ using prog2200_assign2_library;
 namespace prog2200_assign2
 {
     /// <summary>
-    /// The ASCII Garden screen saver window. All flower shapes live in prog2200_assign2_library;
+    /// The ASCII Lily Garden screen saver window. All lily shapes live in prog2200_assign2_library;
     /// this form keeps them in an ArrayList and processes them polymorphically: on every timer tick each item
     /// is cast back to <see cref="Flower"/> and told to Move, and on every repaint it is told to Draw.
     /// Which Move and Draw actually run is decided at run time by the flower's real type (late binding).
@@ -21,26 +21,26 @@ namespace prog2200_assign2
         private const int DefaultTickIntervalMs = 30;
         private const int DefaultStartingFlowersPerKind = 2;
 
-        // Full-bloom size range for the drawn flowers, in pixels.
-        private const int MinBloomSize = 50;
-        private const int MaxBloomSize = 90;
+        // Full-bloom width range for the lilies, in pixels.
+        private const int MinBloomSize = 70;
+        private const int MaxBloomSize = 110;
 
         // Speed range, in pixels per tick.
         private const double MinSpeed = 1.5;
         private const double MaxSpeed = 4.0;
 
-        private const string RunningHint = "Click the garden to plant a random flower";
+        private const string RunningHint = "Click the garden to plant a random lily";
         private const string PausedHint = "Paused";
 
-        private static readonly Color[] FlowerColors =
+        // Spider lilies come in reds, pinks, golds and white. The other lilies choose their own colours.
+        private static readonly Color[] SpiderLilyColors =
         {
+            Color.Crimson,
+            Color.OrangeRed,
             Color.HotPink,
             Color.Gold,
-            Color.Orange,
-            Color.Orchid,
-            Color.LightSkyBlue,
-            Color.Tomato,
-            Color.LightGreen
+            Color.White,
+            Color.LightCoral
         };
 
         // Every flower in the garden. Each one is explicitly upcast to Flower (and then to object) when it is added,
@@ -59,10 +59,10 @@ namespace prog2200_assign2
 
         private enum FlowerKind
         {
-            Daisy,
-            Tulip,
-            AsciiSprout,
-            LabelBouquet
+            SpiderLily,
+            CallaLily,
+            TigerLily,
+            LilyOfTheValley
         }
 
         public MainForm()
@@ -113,24 +113,24 @@ namespace prog2200_assign2
 
         #region Menu handlers
 
-        private void addDaisyMenuItem_Click(object sender, EventArgs e)
+        private void addSpiderLilyMenuItem_Click(object sender, EventArgs e)
         {
-            AddFlower(FlowerKind.Daisy, RandomPointInGarden());
+            AddFlower(FlowerKind.SpiderLily, RandomPointInGarden());
         }
 
-        private void addTulipMenuItem_Click(object sender, EventArgs e)
+        private void addCallaLilyMenuItem_Click(object sender, EventArgs e)
         {
-            AddFlower(FlowerKind.Tulip, RandomPointInGarden());
+            AddFlower(FlowerKind.CallaLily, RandomPointInGarden());
         }
 
-        private void addAsciiSproutMenuItem_Click(object sender, EventArgs e)
+        private void addTigerLilyMenuItem_Click(object sender, EventArgs e)
         {
-            AddFlower(FlowerKind.AsciiSprout, RandomPointInGarden());
+            AddFlower(FlowerKind.TigerLily, RandomPointInGarden());
         }
 
-        private void addLabelBouquetMenuItem_Click(object sender, EventArgs e)
+        private void addLilyOfTheValleyMenuItem_Click(object sender, EventArgs e)
         {
-            AddFlower(FlowerKind.LabelBouquet, RandomPointInGarden());
+            AddFlower(FlowerKind.LilyOfTheValley, RandomPointInGarden());
         }
 
         private void addRandomMenuItem_Click(object sender, EventArgs e)
@@ -172,7 +172,7 @@ namespace prog2200_assign2
 
         #region Garden events
 
-        /// <summary>Plants a random flower wherever the garden is clicked.</summary>
+        /// <summary>Plants a random lily wherever the garden is clicked.</summary>
         private void gardenPanel_MouseClick(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
@@ -240,30 +240,29 @@ namespace prog2200_assign2
         #region Helpers
 
         /// <summary>
-        /// Creates a flower of the given kind with a random colour, size and direction, centres it on
+        /// Creates a lily of the given kind with a random size, direction and starting colour, centres it on
         /// <paramref name="center"/> (kept inside the panel) and adds it to the garden.
         /// </summary>
         private void AddFlower(FlowerKind kind, Point center)
         {
             PointF velocity = RandomVelocity();
-            Color color = FlowerColors[_random.Next(FlowerColors.Length)];
             float bloomSize = _random.Next(MinBloomSize, MaxBloomSize + 1);
             Flower flower;
 
             // Each new flower is explicitly upcast from its own class to Flower.
             switch (kind)
             {
-                case FlowerKind.Daisy:
-                    flower = (Flower)new DaisyFlower(velocity, color, bloomSize);
+                case FlowerKind.SpiderLily:
+                    flower = (Flower)new SpiderLily(velocity, RandomSpiderLilyColor(), bloomSize);
                     break;
-                case FlowerKind.Tulip:
-                    flower = (Flower)new TulipFlower(velocity, bloomSize, _random.Next(TulipFlower.PaletteSize));
+                case FlowerKind.CallaLily:
+                    flower = (Flower)new CallaLily(velocity, bloomSize, _random.Next(CallaLily.PaletteSize));
                     break;
-                case FlowerKind.AsciiSprout:
-                    flower = (Flower)new AsciiSprout(velocity, color);
+                case FlowerKind.TigerLily:
+                    flower = (Flower)new TigerLily(velocity, bloomSize);
                     break;
-                case FlowerKind.LabelBouquet:
-                    flower = (Flower)new LabelFlower(velocity, color, gardenPanel);
+                case FlowerKind.LilyOfTheValley:
+                    flower = (Flower)new LilyOfTheValley(velocity, bloomSize, gardenPanel);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException("kind", kind, "Unknown kind of flower.");
@@ -281,6 +280,11 @@ namespace prog2200_assign2
         private FlowerKind RandomKind()
         {
             return (FlowerKind)_random.Next(Enum.GetValues(typeof(FlowerKind)).Length);
+        }
+
+        private Color RandomSpiderLilyColor()
+        {
+            return SpiderLilyColors[_random.Next(SpiderLilyColors.Length)];
         }
 
         private Point RandomPointInGarden()
@@ -328,7 +332,7 @@ namespace prog2200_assign2
 
         private void UpdateStatus()
         {
-            statusLabel.Text = string.Format(CultureInfo.CurrentCulture, "Flowers: {0}   |   {1}",
+            statusLabel.Text = string.Format(CultureInfo.CurrentCulture, "Lilies: {0}   |   {1}",
                 _flowers.Count, animationTimer.Enabled ? RunningHint : PausedHint);
         }
 

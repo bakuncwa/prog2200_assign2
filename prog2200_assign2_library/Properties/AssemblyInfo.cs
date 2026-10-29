@@ -1,12 +1,11 @@
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("prog2200_assign2_library")]
-[assembly: AssemblyDescription("ASCII Garden - flower shapes and collision detection")]
+[assembly: AssemblyDescription("ASCII Lily Garden - lily shapes and collision detection")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("prog2200_assign2_library")]

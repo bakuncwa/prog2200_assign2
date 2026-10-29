@@ -31,10 +31,10 @@ namespace prog2200_assign2
             this.components = new System.ComponentModel.Container();
             this.mainMenuStrip = new System.Windows.Forms.MenuStrip();
             this.gardenMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.addDaisyMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.addTulipMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.addAsciiSproutMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.addLabelBouquetMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.addSpiderLilyMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.addCallaLilyMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.addTigerLilyMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.addLilyOfTheValleyMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.addRandomMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.addSeparator = new System.Windows.Forms.ToolStripSeparator();
             this.pauseMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -64,10 +64,10 @@ namespace prog2200_assign2
             // gardenMenuItem
             //
             this.gardenMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.addDaisyMenuItem,
-            this.addTulipMenuItem,
-            this.addAsciiSproutMenuItem,
-            this.addLabelBouquetMenuItem,
+            this.addSpiderLilyMenuItem,
+            this.addCallaLilyMenuItem,
+            this.addTigerLilyMenuItem,
+            this.addLilyOfTheValleyMenuItem,
             this.addRandomMenuItem,
             this.addSeparator,
             this.pauseMenuItem,
@@ -78,56 +78,56 @@ namespace prog2200_assign2
             this.gardenMenuItem.Size = new System.Drawing.Size(58, 20);
             this.gardenMenuItem.Text = "&Garden";
             //
-            // addDaisyMenuItem
+            // addSpiderLilyMenuItem
             //
-            this.addDaisyMenuItem.Name = "addDaisyMenuItem";
-            this.addDaisyMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.D1)));
-            this.addDaisyMenuItem.Size = new System.Drawing.Size(240, 22);
-            this.addDaisyMenuItem.Text = "Add &Daisy (gradient)";
-            this.addDaisyMenuItem.Click += new System.EventHandler(this.addDaisyMenuItem_Click);
+            this.addSpiderLilyMenuItem.Name = "addSpiderLilyMenuItem";
+            this.addSpiderLilyMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.D1)));
+            this.addSpiderLilyMenuItem.Size = new System.Drawing.Size(270, 22);
+            this.addSpiderLilyMenuItem.Text = "Add &Spider Lily (gradient)";
+            this.addSpiderLilyMenuItem.Click += new System.EventHandler(this.addSpiderLilyMenuItem_Click);
             //
-            // addTulipMenuItem
+            // addCallaLilyMenuItem
             //
-            this.addTulipMenuItem.Name = "addTulipMenuItem";
-            this.addTulipMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.D2)));
-            this.addTulipMenuItem.Size = new System.Drawing.Size(240, 22);
-            this.addTulipMenuItem.Text = "Add &Tulip (polygon)";
-            this.addTulipMenuItem.Click += new System.EventHandler(this.addTulipMenuItem_Click);
+            this.addCallaLilyMenuItem.Name = "addCallaLilyMenuItem";
+            this.addCallaLilyMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.D2)));
+            this.addCallaLilyMenuItem.Size = new System.Drawing.Size(270, 22);
+            this.addCallaLilyMenuItem.Text = "Add &Calla Lily (polygon)";
+            this.addCallaLilyMenuItem.Click += new System.EventHandler(this.addCallaLilyMenuItem_Click);
             //
-            // addAsciiSproutMenuItem
+            // addTigerLilyMenuItem
             //
-            this.addAsciiSproutMenuItem.Name = "addAsciiSproutMenuItem";
-            this.addAsciiSproutMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.D3)));
-            this.addAsciiSproutMenuItem.Size = new System.Drawing.Size(240, 22);
-            this.addAsciiSproutMenuItem.Text = "Add &ASCII Sprout (text)";
-            this.addAsciiSproutMenuItem.Click += new System.EventHandler(this.addAsciiSproutMenuItem_Click);
+            this.addTigerLilyMenuItem.Name = "addTigerLilyMenuItem";
+            this.addTigerLilyMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.D3)));
+            this.addTigerLilyMenuItem.Size = new System.Drawing.Size(270, 22);
+            this.addTigerLilyMenuItem.Text = "Add &Tiger Lily (ASCII text)";
+            this.addTigerLilyMenuItem.Click += new System.EventHandler(this.addTigerLilyMenuItem_Click);
             //
-            // addLabelBouquetMenuItem
+            // addLilyOfTheValleyMenuItem
             //
-            this.addLabelBouquetMenuItem.Name = "addLabelBouquetMenuItem";
-            this.addLabelBouquetMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.D4)));
-            this.addLabelBouquetMenuItem.Size = new System.Drawing.Size(240, 22);
-            this.addLabelBouquetMenuItem.Text = "Add &Label Bouquet (control)";
-            this.addLabelBouquetMenuItem.Click += new System.EventHandler(this.addLabelBouquetMenuItem_Click);
+            this.addLilyOfTheValleyMenuItem.Name = "addLilyOfTheValleyMenuItem";
+            this.addLilyOfTheValleyMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.D4)));
+            this.addLilyOfTheValleyMenuItem.Size = new System.Drawing.Size(270, 22);
+            this.addLilyOfTheValleyMenuItem.Text = "Add Lily of the &Valley (Label control)";
+            this.addLilyOfTheValleyMenuItem.Click += new System.EventHandler(this.addLilyOfTheValleyMenuItem_Click);
             //
             // addRandomMenuItem
             //
             this.addRandomMenuItem.Name = "addRandomMenuItem";
             this.addRandomMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.R)));
-            this.addRandomMenuItem.Size = new System.Drawing.Size(240, 22);
-            this.addRandomMenuItem.Text = "Add &Random Flower";
+            this.addRandomMenuItem.Size = new System.Drawing.Size(270, 22);
+            this.addRandomMenuItem.Text = "Add &Random Lily";
             this.addRandomMenuItem.Click += new System.EventHandler(this.addRandomMenuItem_Click);
             //
             // addSeparator
             //
             this.addSeparator.Name = "addSeparator";
-            this.addSeparator.Size = new System.Drawing.Size(237, 6);
+            this.addSeparator.Size = new System.Drawing.Size(267, 6);
             //
             // pauseMenuItem
             //
             this.pauseMenuItem.Name = "pauseMenuItem";
             this.pauseMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.P)));
-            this.pauseMenuItem.Size = new System.Drawing.Size(240, 22);
+            this.pauseMenuItem.Size = new System.Drawing.Size(270, 22);
             this.pauseMenuItem.Text = "&Pause";
             this.pauseMenuItem.Click += new System.EventHandler(this.pauseMenuItem_Click);
             //
@@ -135,19 +135,19 @@ namespace prog2200_assign2
             //
             this.clearMenuItem.Name = "clearMenuItem";
             this.clearMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.Delete)));
-            this.clearMenuItem.Size = new System.Drawing.Size(240, 22);
+            this.clearMenuItem.Size = new System.Drawing.Size(270, 22);
             this.clearMenuItem.Text = "&Clear Garden";
             this.clearMenuItem.Click += new System.EventHandler(this.clearMenuItem_Click);
             //
             // exitSeparator
             //
             this.exitSeparator.Name = "exitSeparator";
-            this.exitSeparator.Size = new System.Drawing.Size(237, 6);
+            this.exitSeparator.Size = new System.Drawing.Size(267, 6);
             //
             // exitMenuItem
             //
             this.exitMenuItem.Name = "exitMenuItem";
-            this.exitMenuItem.Size = new System.Drawing.Size(240, 22);
+            this.exitMenuItem.Size = new System.Drawing.Size(270, 22);
             this.exitMenuItem.Text = "E&xit";
             this.exitMenuItem.Click += new System.EventHandler(this.exitMenuItem_Click);
             //
@@ -211,7 +211,7 @@ namespace prog2200_assign2
             this.MinimumSize = new System.Drawing.Size(320, 240);
             this.Name = "MainForm";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "ASCII Garden Screen Saver";
+            this.Text = "ASCII Lily Garden Screen Saver";
             this.mainMenuStrip.ResumeLayout(false);
             this.mainMenuStrip.PerformLayout();
             this.statusStrip.ResumeLayout(false);
@@ -225,10 +225,10 @@ namespace prog2200_assign2
 
         private System.Windows.Forms.MenuStrip mainMenuStrip;
         private System.Windows.Forms.ToolStripMenuItem gardenMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem addDaisyMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem addTulipMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem addAsciiSproutMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem addLabelBouquetMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem addSpiderLilyMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem addCallaLilyMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem addTigerLilyMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem addLilyOfTheValleyMenuItem;
         private System.Windows.Forms.ToolStripMenuItem addRandomMenuItem;
         private System.Windows.Forms.ToolStripSeparator addSeparator;
         private System.Windows.Forms.ToolStripMenuItem pauseMenuItem;
