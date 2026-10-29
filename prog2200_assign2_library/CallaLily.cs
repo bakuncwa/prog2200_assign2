@@ -48,7 +48,7 @@ namespace prog2200_assign2_library
         };
 
         // Width and height of the open spathe, in plant units.
-        private const float SpatheSize = 0.62f;
+        private const float SpatheSize = 0.8f;
 
         // How wide the bright edge of the spathe is, in plant units.
         private const float EdgeRadius = 0.02f;
@@ -73,10 +73,10 @@ namespace prog2200_assign2_library
             get { return Palette.Length; }
         }
 
-        /// <summary>The spathe stands up above the stem, so the stem stops lower down.</summary>
-        protected override float StemTopAtFullGrowth
+        /// <summary>The spathe stands up above the stem, so the stem meets the head near its bottom.</summary>
+        protected override PointF StemTop
         {
-            get { return 0.68f; }
+            get { return new PointF(0f, HeadHeight * 0.92f); }
         }
 
         /// <summary>Draws the ASCII plant, then traces the spathe polygon faintly over it.</summary>

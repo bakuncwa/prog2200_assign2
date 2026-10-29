@@ -125,7 +125,7 @@ namespace prog2200_assign2
             this.scatterSeedsMenuItem.Name = "scatterSeedsMenuItem";
             this.scatterSeedsMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.S)));
             this.scatterSeedsMenuItem.Size = new System.Drawing.Size(270, 22);
-            this.scatterSeedsMenuItem.Text = "Scatter S&eeds From Centre";
+            this.scatterSeedsMenuItem.Text = "Grow One of &Each";
             this.scatterSeedsMenuItem.Click += new System.EventHandler(this.scatterSeedsMenuItem_Click);
             //
             // addSeparator
@@ -202,6 +202,8 @@ namespace prog2200_assign2
             this.gardenPanel.TabIndex = 1;
             this.gardenPanel.Paint += new System.Windows.Forms.PaintEventHandler(this.gardenPanel_Paint);
             this.gardenPanel.MouseClick += new System.Windows.Forms.MouseEventHandler(this.gardenPanel_MouseClick);
+            this.gardenPanel.MouseLeave += new System.EventHandler(this.gardenPanel_MouseLeave);
+            this.gardenPanel.MouseMove += new System.Windows.Forms.MouseEventHandler(this.gardenPanel_MouseMove);
             this.gardenPanel.Resize += new System.EventHandler(this.gardenPanel_Resize);
             //
             // animationTimer

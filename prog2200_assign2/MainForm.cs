@@ -10,10 +10,11 @@ using prog2200_assign2_library;
 namespace prog2200_assign2
 {
     /// <summary>
-    /// The ASCII Lily Garden screen saver window. All lily shapes live in prog2200_assign2_library;
-    /// this form keeps them in an ArrayList and processes them polymorphically: on every timer tick each item
-    /// is cast back to <see cref="Flower"/> and told to Move, and on every repaint it is told to Draw.
-    /// Which Move and Draw actually run is decided at run time by the flower's real type (late binding).
+    /// The ASCII Lily Garden screen saver window: one vase at the bottom middle of the garden, with every lily's stem
+    /// branching out of its mouth. All lily shapes live in prog2200_assign2_library; this form keeps them in an
+    /// ArrayList and processes them polymorphically: on every timer tick each item is cast back to
+    /// <see cref="Flower"/> and told to Move, and on every repaint it is told to Draw. Which Move and Draw actually
+    /// run is decided at run time by the flower's real type (late binding).
     /// </summary>
     public partial class MainForm : Form
     {
@@ -22,18 +23,30 @@ namespace prog2200_assign2
         private const int DefaultStartingFlowersPerKind = 1;
         private const int DefaultMaxFlowers = 16;
 
-        // Full-bloom width range for the lilies, in pixels.
-        private const int MinBloomSize = 110;
-        private const int MaxBloomSize = 160;
+        // Full-bloom width range for the lily heads, in pixels.
+        private const int MinBloomSize = 90;
+        private const int MaxBloomSize = 130;
 
         // Drifting speed range, in pixels per tick.
-        private const double MinSpeed = 0.6;
-        private const double MaxSpeed = 1.6;
+        private const double MinSpeed = 0.5;
+        private const double MaxSpeed = 1.2;
+
+        // Each stem can use between this share and all of the garden's full reach, so the heads are at different heights.
+        private const double MinReachShare = 0.55;
+
+        // How far a new stem's direction can stray either side of where it was aimed, or of straight up, in radians.
+        private const double AimSpread = Math.PI / 6;
+        private const double UpwardSpread = Math.PI / 3;
+
+        // Pixels kept clear between the furthest a head can reach and the garden's edge, and the shortest full reach
+        // a stem can have in a very small garden.
+        private const float ReachMargin = 20f;
+        private const float MinReach = 50f;
 
         // When the garden is made bigger, one new seedling is planted for every this many new square pixels.
         private const int AreaPerNewSeedling = 150000;
 
-        private const string RunningHint = "Left-click: plant a seed   Right-click: scatter seeds";
+        private const string RunningHint = "Click: grow a lily   Right-click: one of each   Hover the vase: a hand adds one";
         private const string PausedHint = "Paused";
 
         // Spider lilies come in reds, pinks, golds and white. The other lilies choose their own colours.
@@ -52,6 +65,13 @@ namespace prog2200_assign2
         private readonly ArrayList _flowers = new ArrayList();
 
         private readonly Random _random = new Random();
+
+        // The one vase every stem grows from, and the hand that puts flowers into it.
+        private readonly Vase _vase = new Vase();
+        private readonly ReachingHand _hand = new ReachingHand();
+
+        // Whether the mouse was over the vase last time it moved, so the hand comes once each time the mouse arrives.
+        private bool _isHoveringVase;
 
         // Read from the appSettings section of App.config.
         private readonly int _startingFlowersPerKind = ReadSetting("StartingFlowersPerKind", DefaultStartingFlowersPerKind);
@@ -84,13 +104,14 @@ namespace prog2200_assign2
         }
 
         /// <summary>
-        /// Plants the first seeds, all at one point in the middle of the garden so they scatter outwards from there,
-        /// and starts the animation. Done here rather than in the constructor because the panel only has its real
-        /// size once the window is on screen.
+        /// Places the vase, plants the first seeds in it (they branch out from there) and starts the animation.
+        /// Done here rather than in the constructor because the panel only has its real size once the window is on screen.
         /// </summary>
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
+
+            _vase.Place(gardenPanel.ClientRectangle);
 
             for (int i = 0; i < _startingFlowersPerKind; i++)
             {
@@ -126,27 +147,27 @@ namespace prog2200_assign2
 
         private void addSpiderLilyMenuItem_Click(object sender, EventArgs e)
         {
-            AddFlower(FlowerKind.SpiderLily, RandomPointInGarden());
+            AddFlower(FlowerKind.SpiderLily, RandomPointAboveVase());
         }
 
         private void addCallaLilyMenuItem_Click(object sender, EventArgs e)
         {
-            AddFlower(FlowerKind.CallaLily, RandomPointInGarden());
+            AddFlower(FlowerKind.CallaLily, RandomPointAboveVase());
         }
 
         private void addTigerLilyMenuItem_Click(object sender, EventArgs e)
         {
-            AddFlower(FlowerKind.TigerLily, RandomPointInGarden());
+            AddFlower(FlowerKind.TigerLily, RandomPointAboveVase());
         }
 
         private void addLilyOfTheValleyMenuItem_Click(object sender, EventArgs e)
         {
-            AddFlower(FlowerKind.LilyOfTheValley, RandomPointInGarden());
+            AddFlower(FlowerKind.LilyOfTheValley, RandomPointAboveVase());
         }
 
         private void addRandomMenuItem_Click(object sender, EventArgs e)
         {
-            AddFlower(RandomKind(), RandomPointInGarden());
+            AddFlower(RandomKind(), RandomPointAboveVase());
         }
 
         private void scatterSeedsMenuItem_Click(object sender, EventArgs e)
@@ -189,8 +210,8 @@ namespace prog2200_assign2
         #region Garden events
 
         /// <summary>
-        /// A left-click plants one random seed where the garden is clicked; a right-click scatters one seed of every
-        /// kind from that point.
+        /// A left-click grows one random lily from the vase towards the click; a right-click grows one of every kind
+        /// towards it.
         /// </summary>
         private void gardenPanel_MouseClick(object sender, MouseEventArgs e)
         {
@@ -204,10 +225,29 @@ namespace prog2200_assign2
             }
         }
 
+        /// <summary>Sends the hand in with a new flower when the mouse moves onto the vase.</summary>
+        private void gardenPanel_MouseMove(object sender, MouseEventArgs e)
+        {
+            bool isOverVase = _vase.Contains(e.Location);
+
+            if (isOverVase && !_isHoveringVase && animationTimer.Enabled)
+            {
+                _hand.Start();
+            }
+
+            _isHoveringVase = isOverVase;
+        }
+
+        private void gardenPanel_MouseLeave(object sender, EventArgs e)
+        {
+            _isHoveringVase = false;
+        }
+
         /// <summary>
-        /// One animation step: every flower grows and moves (bouncing off the walls of the panel's current size),
-        /// then flowers that are about to touch bounce off each other and wilt, then the panel is repainted.
-        /// Two lilies in bloom that meet pollinate each other, and a new seedling is planted between them.
+        /// One animation step: every flower grows and moves (bouncing off the walls of the panel's current size and
+        /// staying within reach of its stem), then flowers that are about to touch bounce off each other and wilt,
+        /// then the hand moves, then the panel is repainted. Two lilies in bloom that meet pollinate each other, and a
+        /// new lily grows from the vase towards where they met; the hand puts a new one in when it lets go.
         /// </summary>
         private void animationTimer_Tick(object sender, EventArgs e)
         {
@@ -238,9 +278,15 @@ namespace prog2200_assign2
                 AddFlower(RandomKind(), Point.Round((PointF)item));
             }
 
+            if (_hand.Move(bounds, _vase.Mouth))
+            {
+                AddFlower(RandomKind(), RandomPointAboveVase());
+            }
+
             gardenPanel.Invalidate();
         }
 
+        /// <summary>Draws the stems first, then the vase over their bottoms, then the lily heads, then the hand.</summary>
         private void gardenPanel_Paint(object sender, PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -248,13 +294,24 @@ namespace prog2200_assign2
             foreach (object item in _flowers)
             {
                 Flower flower = (Flower)item;
+                Stems.Draw(e.Graphics, _vase.Mouth, flower);
+            }
+
+            _vase.Draw(e.Graphics);
+
+            foreach (object item in _flowers)
+            {
+                Flower flower = (Flower)item;
                 flower.Draw(e.Graphics);
             }
+
+            _hand.Draw(e.Graphics);
         }
 
         /// <summary>
-        /// When the window shrinks, pulls any flower that is now past an edge back inside. When it grows, new
-        /// seedlings sprout in the extra space: one for every <see cref="AreaPerNewSeedling"/> square pixels.
+        /// Moves the vase to the new bottom middle and reties every stem to it with a reach that fits the new size,
+        /// and pulls any flower that is now past an edge back inside. When the garden grows, new lilies sprout:
+        /// one for every <see cref="AreaPerNewSeedling"/> new square pixels.
         /// </summary>
         private void gardenPanel_Resize(object sender, EventArgs e)
         {
@@ -265,9 +322,12 @@ namespace prog2200_assign2
                 return;
             }
 
+            _vase.Place(bounds);
+
             foreach (object item in _flowers)
             {
                 Flower flower = (Flower)item;
+                flower.TieTo(_vase.Mouth, MaxReach());
                 flower.KeepInside(bounds);
             }
 
@@ -286,7 +346,7 @@ namespace prog2200_assign2
                 while (_grownGardenArea >= AreaPerNewSeedling && _flowers.Count < _maxFlowers)
                 {
                     _grownGardenArea -= AreaPerNewSeedling;
-                    AddFlower(RandomKind(), RandomPointInGarden());
+                    AddFlower(RandomKind(), RandomPointAboveVase());
                 }
             }
 
@@ -298,12 +358,12 @@ namespace prog2200_assign2
         #region Helpers
 
         /// <summary>
-        /// Creates a lily of the given kind with a random size, direction and starting colour, centres its seed on
-        /// <paramref name="center"/> (kept inside the panel) and adds it to the garden.
+        /// Creates a lily of the given kind with a random size, reach and starting colour, plants its seed in the
+        /// vase mouth with its stem heading towards <paramref name="aim"/>, and adds it to the garden.
         /// </summary>
-        private void AddFlower(FlowerKind kind, Point center)
+        private void AddFlower(FlowerKind kind, Point aim)
         {
-            PointF velocity = RandomVelocity();
+            PointF velocity = VelocityTowards(aim);
             float bloomSize = _random.Next(MinBloomSize, MaxBloomSize + 1);
             Flower flower;
 
@@ -326,8 +386,9 @@ namespace prog2200_assign2
                     throw new ArgumentOutOfRangeException("kind", kind, "Unknown kind of flower.");
             }
 
-            flower.CenterOn(center);
-            flower.KeepInside(gardenPanel.ClientRectangle);
+            flower.ReachShare = (float)(MinReachShare + _random.NextDouble() * (1 - MinReachShare));
+            flower.TieTo(_vase.Mouth, MaxReach());
+            flower.CenterOn(_vase.Mouth);
 
             _flowers.Add((object)flower);
 
@@ -335,12 +396,12 @@ namespace prog2200_assign2
             UpdateStatus();
         }
 
-        /// <summary>Plants one seed of every kind at <paramref name="point"/>; they drift apart in different directions.</summary>
-        private void ScatterSeeds(Point point)
+        /// <summary>Plants one seed of every kind in the vase, all heading roughly towards <paramref name="aim"/>.</summary>
+        private void ScatterSeeds(Point aim)
         {
             foreach (FlowerKind kind in Enum.GetValues(typeof(FlowerKind)))
             {
-                AddFlower(kind, point);
+                AddFlower(kind, aim);
             }
         }
 
@@ -368,17 +429,47 @@ namespace prog2200_assign2
             return size.Width * size.Height;
         }
 
-        private Point RandomPointInGarden()
+        /// <summary>A random point somewhere above the vase mouth, for a new lily to head towards.</summary>
+        private Point RandomPointAboveVase()
         {
             Size size = gardenPanel.ClientSize;
+            int mouthHeight = Math.Max(1, (int)_vase.Mouth.Y);
 
-            return new Point(_random.Next(Math.Max(1, size.Width)), _random.Next(Math.Max(1, size.Height)));
+            return new Point(_random.Next(Math.Max(1, size.Width)), _random.Next(mouthHeight));
         }
 
-        /// <summary>A velocity in a random direction with a speed between <see cref="MinSpeed"/> and <see cref="MaxSpeed"/>.</summary>
-        private PointF RandomVelocity()
+        /// <summary>
+        /// The longest a stem can reach in the current garden: far enough from the vase mouth to touch the top or
+        /// the sides, whichever is further.
+        /// </summary>
+        private float MaxReach()
         {
-            double angle = _random.NextDouble() * 2 * Math.PI;
+            Size size = gardenPanel.ClientSize;
+            float toTop = _vase.Mouth.Y;
+            float toSide = size.Width / 2f;
+
+            return Math.Max(MinReach, Math.Max(toTop, toSide) - ReachMargin);
+        }
+
+        /// <summary>
+        /// A velocity heading from the vase mouth towards <paramref name="aim"/> (give or take a little), with a speed
+        /// between <see cref="MinSpeed"/> and <see cref="MaxSpeed"/>. If the aim is not above the vase the lily heads
+        /// roughly upwards instead, so the bouquet stands up.
+        /// </summary>
+        private PointF VelocityTowards(Point aim)
+        {
+            PointF mouth = _vase.Mouth;
+            double angle;
+
+            if (aim.Y < mouth.Y - ReachMargin)
+            {
+                angle = Math.Atan2(aim.Y - mouth.Y, aim.X - mouth.X) + (_random.NextDouble() * 2 - 1) * AimSpread;
+            }
+            else
+            {
+                angle = -Math.PI / 2 + (_random.NextDouble() * 2 - 1) * UpwardSpread;
+            }
+
             double speed = MinSpeed + _random.NextDouble() * (MaxSpeed - MinSpeed);
 
             return new PointF((float)(Math.Cos(angle) * speed), (float)(Math.Sin(angle) * speed));

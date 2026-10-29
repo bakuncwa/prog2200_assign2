@@ -36,6 +36,7 @@
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AsciiCanvas.cs" />
     <Compile Include="AsciiLily.cs" />
     <Compile Include="AsciiSample.cs" />
     <Compile Include="BufferedLabel.cs" />
@@ -46,8 +47,11 @@
     <Compile Include="GrowthStage.cs" />
     <Compile Include="LilyOfTheValley.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ReachingHand.cs" />
     <Compile Include="SpiderLily.cs" />
+    <Compile Include="Stems.cs" />
     <Compile Include="TigerLily.cs" />
+    <Compile Include="Vase.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

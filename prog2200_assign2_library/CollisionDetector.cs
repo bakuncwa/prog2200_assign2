@@ -7,7 +7,8 @@ namespace prog2200_assign2_library
     /// <summary>
     /// Makes flowers bounce off each other. Each flower is treated as a circle (<see cref="Flower.Center"/>,
     /// <see cref="Flower.Radius"/>) and every pair is checked once per tick. Flowers react a few pixels before
-    /// their circles would touch, so they bounce apart (and wilt) just before they meet.
+    /// their circles would touch, so they bounce apart (and wilt) just before they meet. Seeds and sprouts are
+    /// skipped: they all start together at the vase mouth and are still too small to bump into anything.
     /// </summary>
     public static class CollisionDetector
     {
@@ -33,9 +34,19 @@ namespace prog2200_assign2_library
             {
                 Flower first = (Flower)flowers[i];
 
+                if (IsTooYoung(first))
+                {
+                    continue;
+                }
+
                 for (int j = i + 1; j < flowers.Count; j++)
                 {
                     Flower second = (Flower)flowers[j];
+
+                    if (IsTooYoung(second))
+                    {
+                        continue;
+                    }
 
                     // Checked before bouncing, because a bounce makes both flowers start to wilt.
                     bool bothInBloom = first.Stage == GrowthStage.Bloom && second.Stage == GrowthStage.Bloom;
@@ -52,6 +63,11 @@ namespace prog2200_assign2_library
             }
 
             return pollinationPoints;
+        }
+
+        private static bool IsTooYoung(Flower flower)
+        {
+            return flower.Stage == GrowthStage.Seed || flower.Stage == GrowthStage.Sprout;
         }
 
         /// <summary>
