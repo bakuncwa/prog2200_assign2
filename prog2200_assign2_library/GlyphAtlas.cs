@@ -5,14 +5,11 @@ using System.Drawing.Text;
 namespace prog2200_assign2_library
 {
     /// <summary>
-    /// Pre-drawn characters for the ASCII lilies, like the font texture TouchDesigner's ASCII effect looks characters
-    /// up in. Each character is drawn once into a small cell and kept as a coverage mask (0 = empty, 255 = solid),
-    /// so a whole lily can be built by copying masks into a bitmap instead of drawing every character as text.
-    /// Characters that are drawn one at a time (the stems) are also kept as small coloured bitmaps.
+    /// Each character drawn once into a 5 x 8 cell and cached: as a coverage mask (for building lily bitmaps) and as
+    /// small coloured bitmaps (for the stems), so nothing is drawn as text every frame.
     /// </summary>
     internal static class GlyphAtlas
     {
-        /// <summary>Size of one character cell, in pixels.</summary>
         public const int CellWidth = 5;
         public const int CellHeight = 8;
 
@@ -20,13 +17,10 @@ namespace prog2200_assign2_library
 
         private static readonly Dictionary<char, byte[]> Masks = new Dictionary<char, byte[]>();
 
-        // Coloured single-character bitmaps, keyed by the character and the colour's ARGB value.
+        // Keyed by the character and the colour's ARGB value.
         private static readonly Dictionary<long, Bitmap> Sprites = new Dictionary<long, Bitmap>();
 
-        /// <summary>
-        /// The coverage of every pixel of <paramref name="character"/>'s cell, row by row
-        /// (<see cref="CellWidth"/> values per row). Drawn the first time it is asked for.
-        /// </summary>
+        /// <summary>Coverage (0-255) of each pixel of the character's cell, row by row.</summary>
         public static byte[] GetMask(char character)
         {
             byte[] mask;
@@ -40,10 +34,7 @@ namespace prog2200_assign2_library
             return mask;
         }
 
-        /// <summary>
-        /// A cell-sized bitmap of <paramref name="character"/> in <paramref name="color"/> with a transparent background.
-        /// Made the first time it is asked for; colours should come from a small set so only a few are ever made.
-        /// </summary>
+        /// <summary>A cell-sized bitmap of the character in the given colour, on a transparent background.</summary>
         public static Bitmap GetSprite(char character, Color color)
         {
             long key = ((long)character << 32) | (uint)color.ToArgb();
@@ -68,7 +59,7 @@ namespace prog2200_assign2_library
             return sprite;
         }
 
-        /// <summary>Draws the character in white on black, centred in a cell, and reads back how bright each pixel is.</summary>
+        /// <summary>Draws the character white on black, centred in a cell, and reads back each pixel's brightness.</summary>
         private static byte[] DrawMask(char character)
         {
             byte[] mask = new byte[CellWidth * CellHeight];

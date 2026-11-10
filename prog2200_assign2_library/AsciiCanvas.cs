@@ -5,16 +5,12 @@ using System.Runtime.InteropServices;
 
 namespace prog2200_assign2_library
 {
-    /// <summary>
-    /// Shared pieces of the ASCII look: the brightness ramp, shading, a repeatable noise function, and turning a grid
-    /// of characters into a bitmap by copying them out of the <see cref="GlyphAtlas"/>.
-    /// </summary>
+    /// <summary>Shared ASCII helpers: the brightness ramp, shading, wilt colours, noise, and grid-to-bitmap copying.</summary>
     internal static class AsciiCanvas
     {
-        /// <summary>Characters from empty to brightest.</summary>
         public const string Ramp = " .:-=+*#%@";
 
-        // Colours a wilting flower passes through after its own colour: red, then brown, then nearly black.
+        // A wilting flower turns from its own colour to red, brown, then nearly black, in WiltSteps steps.
         private static readonly Color[] WiltColors =
         {
             Color.FromArgb(200, 40, 35),
@@ -22,18 +18,11 @@ namespace prog2200_assign2_library
             Color.FromArgb(35, 22, 12)
         };
 
-        // Wilting colours are shown in this many steps so only a few colours are ever made.
         private const int WiltSteps = 10;
-
-        // Each cell is sampled on a small grid of points and the results blended, like downsampling an image.
         private const int SamplesAcross = 2;
         private const int SamplesDown = 2;
 
-        /// <summary>
-        /// Draws a picture made by <paramref name="sample"/> as ASCII characters and returns it as a bitmap.
-        /// <paramref name="sample"/> is given pixel coordinates inside the bitmap and returns how bright and what
-        /// colour that point is. Used for pictures that never change shape, like the vase and the hand.
-        /// </summary>
+        /// <summary>Draws a fixed picture (the vase) as ASCII; <paramref name="sample"/> takes pixel coordinates.</summary>
         public static Bitmap Render(int columns, int rows, Func<float, float, AsciiSample> sample, int noiseSeed)
         {
             char[,] characters = new char[rows, columns];
@@ -80,11 +69,7 @@ namespace prog2200_assign2_library
             return bitmap;
         }
 
-        /// <summary>
-        /// Copies every cell's character out of the glyph atlas, tinted with the cell's colour, into
-        /// <paramref name="bitmap"/>. <paramref name="pixels"/> is a work buffer the size of the bitmap.
-        /// Anything in the bitmap outside the grid is cleared.
-        /// </summary>
+        /// <summary>Copies each cell's character from the glyph atlas, tinted with its colour, into the bitmap.</summary>
         public static void Blit(Bitmap bitmap, int[] pixels, char[,] characters, Color[,] colors)
         {
             Array.Clear(pixels, 0, pixels.Length);
@@ -115,7 +100,6 @@ namespace prog2200_assign2_library
                                 continue;
                             }
 
-                            // Premultiplied alpha: each colour channel is already scaled by the coverage.
                             pixels[topLeft + y * stride + x] = (alpha << 24) | (color.R * alpha / 255 << 16) |
                                 (color.G * alpha / 255 << 8) | (color.B * alpha / 255);
                         }
@@ -136,7 +120,7 @@ namespace prog2200_assign2_library
             }
         }
 
-        /// <summary>Dim, normal or highlighted version of a colour depending on how bright the cell is.</summary>
+        /// <summary>A dim, normal or highlighted version of a colour, depending on brightness.</summary>
         public static Color Shade(Color color, float brightness)
         {
             if (brightness < 0.4f)
@@ -147,10 +131,7 @@ namespace prog2200_assign2_library
             return brightness < 0.75f ? color : Blend(color, Color.White, 0.35f);
         }
 
-        /// <summary>
-        /// The colour of something wilting: <paramref name="original"/> at the start (<paramref name="wilt"/> 0),
-        /// turning red, then brown, then nearly black at the end (1).
-        /// </summary>
+        /// <summary>The colour of something wilting: the original at 0, then red, brown and nearly black at 1.</summary>
         public static Color Wilted(Color original, float wilt)
         {
             float steps = (float)Math.Round(Clamp01(wilt) * WiltSteps) / WiltSteps;
@@ -160,7 +141,6 @@ namespace prog2200_assign2_library
                 return original;
             }
 
-            // Which pair of colours the wilt is between, and how far between them.
             float position = steps * WiltColors.Length;
             int next = Math.Min((int)Math.Ceiling(position), WiltColors.Length) - 1;
             Color from = next == 0 ? original : WiltColors[next - 1];
@@ -168,7 +148,7 @@ namespace prog2200_assign2_library
             return Blend(from, WiltColors[next], position - next);
         }
 
-        /// <summary>Mixes two colours: 0 gives <paramref name="from"/>, 1 gives <paramref name="to"/>.</summary>
+        /// <summary>Mixes two colours: 0 gives from, 1 gives to.</summary>
         public static Color Blend(Color from, Color to, float amount)
         {
             amount = Clamp01(amount);
@@ -179,10 +159,7 @@ namespace prog2200_assign2_library
                 (int)Math.Round(from.B + (to.B - from.B) * amount));
         }
 
-        /// <summary>
-        /// Brightness of a shape edge: 1 inside <paramref name="radius"/>, fading to 0 over
-        /// <paramref name="softness"/> around it, which smooths the edges like anti-aliasing.
-        /// </summary>
+        /// <summary>1 inside radius, fading to 0 over softness (anti-aliased edges).</summary>
         public static float Soft(float distance, float radius, float softness)
         {
             return Clamp01((radius - distance) / softness + 0.5f);
@@ -207,7 +184,7 @@ namespace prog2200_assign2_library
             return Math.Max(0f, Math.Min(value, 1f));
         }
 
-        /// <summary>A repeatable pseudo-random number from 0 up to (not including) 1 for three whole numbers.</summary>
+        /// <summary>A repeatable pseudo-random number in [0, 1) for three whole numbers.</summary>
         public static float Hash(int x, int y, int z)
         {
             unchecked

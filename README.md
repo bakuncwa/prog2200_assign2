@@ -17,6 +17,21 @@ it the look of a TouchDesigner render.
 All lilies inherit from one abstract class and are processed polymorphically from an `ArrayList` on a timer.
 The shapes and collision detection are in a class library.
 
+## Rubric Checklist
+
+Search the code for `Rubric (` to find each item.
+
+| Rubric item | Where |
+|-------------|-------|
+| Visual state changes (4) | `TigerLily` characters per growth stage, `SpiderLily` turning gradient, `CallaLily` colour on wall bounce, `LilyOfTheValley` gold flash on collision |
+| Polygon | `CallaLily`: 13-point irregular polygon (`GraphicsPath.AddPolygon`, `DrawPolygon`) |
+| Library control | `LilyOfTheValley`: a Windows Forms `Label` added to the panel |
+| Polymorphic processing | `MainForm`: `ArrayList` of `Flower`, explicit casts, timer calls `Move` and `Draw` (late binding) |
+| Bouncing off walls | `Flower.BounceOffWalls` |
+| Shapes respond to resize | `MainForm.gardenPanel_Resize`, `Flower.TieTo`, `Flower.KeepInside`, `Vase.Place` |
+| Adding shapes | `MainForm`: left/right-click, Garden menu, Ctrl+1–4 / R / S |
+| Collision detection | `CollisionDetector.BounceOffEachOther` |
+
 ## Quick Start
 
 1. **Clone and build**:
@@ -61,7 +76,7 @@ The shapes and collision detection are in a class library.
 - **Life Cycle**: Seed → Sprout (a shoot with two small leaves) → Bud (swells) → Bloom (opens) → Wilt → resprouts and heads off upwards again. A whole cycle takes about 50 seconds, and each lily's stages are up to 25% longer or shorter so they drift out of step
 - **Wilting**: A lily whose bloom is over, or that was bumped while in bloom, stays in full bloom until it is its turn. `WiltScheduler` runs a background worker thread that lets waiting lilies go one at a time, waiting until each one has actually started wilting and then 1.5 seconds more before letting the next go (so even a paused garden does not build up a crowd). A wilting lily droops over to its side - never lower than the vase mouth - turns from its own colour to red, brown and then nearly black while it crumbles and fades, and its stem draws it back into the vase neck
 - **Stop-Motion Growth**: Each head's picture is redrawn every 4 ticks (and straight away when it changes stage), so it grows in visible steps while its position and stem keep moving smoothly every tick
-- **Wall Bouncing**: After moving, a head past an edge is put back on that edge and its velocity is pointed away from that wall
+- **Wall Bouncing**: After moving, a head past an edge is put back on that edge and its velocity is pointed away from that wall. Arriving at a wall counts as a bounce: the head's sideways speed reflects and its stem springs back a little, then grows out to the wall again, so heads visibly bounce off the top and sides. The sideways sway is strong enough that grown lilies swing into the side walls regularly (about once every 2 seconds each)
 - **Stem Reach**: A head that gets further from the vase than its stem can reach is pulled back and bounces off that limit
 - **Responds to Resizing**: The panel's current `ClientRectangle` is passed to `Move` every tick. `Resize` moves the vase to the new bottom middle, reties every stem with a reach that fits the new size, pulls any head that is now outside back in, and plants new lilies if the garden got bigger
 - **Collision Detection**: Each head is a circle around its centre. When two circles come within 6 pixels of each other they are eased apart (at most 1.5 pixels each per tick), and if they are moving towards each other the velocity parts along the line between their centres are swapped (elastic, equal mass). A bloom that is bumped becomes ready to wilt. Seeds, sprouts and wilting lilies are skipped because they are small and close to the vase mouth

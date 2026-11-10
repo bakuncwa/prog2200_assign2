@@ -4,21 +4,16 @@ using System.Drawing;
 namespace prog2200_assign2_library
 {
     /// <summary>
-    /// Draws the stem from the vase mouth to a flower's head in ASCII. The stem is a curve that leaves the vase going
-    /// up and reaches the head from below; each character cell it passes through gets a line character that follows
-    /// its direction (| / \ -). Once the stem is long enough it grows two shaded leaves on opposite sides.
-    /// While its flower wilts, the stem and leaves turn from green to red, brown and then dark.
-    /// All stems start from the same point, so together they branch out of the vase like a bouquet.
+    /// Draws each stem in ASCII as a curve from the vase mouth to its flower's head, with line characters that follow
+    /// its direction and two shaded leaves. All stems start at the vase mouth, so they branch out like a bouquet.
     /// </summary>
     public static class Stems
     {
-        // Pixels between the points the curve is checked at; smaller than a cell so no cell is skipped.
+        // Smaller than a cell, so no cell along the curve is skipped.
         private const float StepPixels = 2f;
 
-        // Stems shorter than this have no leaves yet.
         private const float LeafStemLength = 60f;
 
-        // Leaf length range in pixels, and its width compared to its length.
         private const float MinLeafLength = 12f;
         private const float MaxLeafLength = 36f;
         private const float LeafWidthToLength = 0.25f;
@@ -26,7 +21,7 @@ namespace prog2200_assign2_library
         private static readonly Color StemColor = Color.FromArgb(120, 170, 90);
         private static readonly Color LeafColor = Color.FromArgb(165, 205, 120);
 
-        /// <summary>Draws the stem from <paramref name="origin"/> to <paramref name="flower"/>'s head.</summary>
+        /// <summary>Draws the stem from origin (the vase mouth) to the flower's head.</summary>
         public static void Draw(Graphics graphics, PointF origin, Flower flower)
         {
             PointF end = flower.StemEnd;
@@ -41,7 +36,7 @@ namespace prog2200_assign2_library
 
             Color stemColor = AsciiCanvas.Wilted(StemColor, flower.WiltProgress);
 
-            // The curve leaves the vase going straight up and arrives at the head from below.
+            // Bezier curve: leaves the vase going straight up and arrives at the head from below.
             PointF leaving = new PointF(origin.X, origin.Y - length * 0.45f);
             PointF arriving = new PointF(end.X, end.Y + length * 0.3f);
 
@@ -56,8 +51,7 @@ namespace prog2200_assign2_library
                 Point cell = new Point((int)Math.Floor(point.X / GlyphAtlas.CellWidth),
                     (int)Math.Floor(point.Y / GlyphAtlas.CellHeight));
 
-                // One character per row where the stem is steep and one per column where it is shallow,
-                // so sloping parts are a single clean line instead of a doubled one.
+                // One character per row where the stem is steep, one per column where it is shallow.
                 bool isSteep = Math.Abs(direction.Y) * GlyphAtlas.CellWidth >= Math.Abs(direction.X) * GlyphAtlas.CellHeight;
                 bool alreadyDrawn = isSteep ? cell.Y == lastCell.Y : cell.X == lastCell.X;
 
@@ -80,10 +74,7 @@ namespace prog2200_assign2_library
             }
         }
 
-        /// <summary>
-        /// A leaf growing out of the stem at <paramref name="along"/> of its length, on one side (-1 or 1), tilted
-        /// upwards and shaded like the lilies' leaves: brightest along its midrib, fading towards its edges.
-        /// </summary>
+        /// <summary>A leaf at a point along the stem, on one side (-1 or 1), tilted upwards.</summary>
         private static void DrawLeaf(Graphics graphics, PointF p0, PointF p1, PointF p2, PointF p3, float along,
             int side, float length, Color color)
         {
@@ -92,7 +83,6 @@ namespace prog2200_assign2_library
             float directionLength = Math.Max((float)Math.Sqrt(direction.X * direction.X + direction.Y * direction.Y),
                 0.0001f);
 
-            // Out to the side, tilted up.
             float outX = -direction.Y / directionLength * side;
             float outY = direction.X / directionLength * side - 0.7f;
             float outLength = (float)Math.Sqrt(outX * outX + outY * outY);
@@ -122,7 +112,7 @@ namespace prog2200_assign2_library
             }
         }
 
-        /// <summary>Brightness of a pointed, slightly arched leaf blade at pixel (<paramref name="x"/>, <paramref name="y"/>).</summary>
+        /// <summary>Brightness of a pointed, slightly arched leaf at a pixel.</summary>
         private static float LeafBrightness(float x, float y, PointF start, PointF end, float halfWidth)
         {
             float axisX = end.X - start.X;
@@ -145,7 +135,7 @@ namespace prog2200_assign2_library
             return edge * (0.5f + 0.4f * (1f - across / Math.Max(half, 0.0001f)));
         }
 
-        /// <summary>The line character that best follows <paramref name="direction"/> on screen.</summary>
+        /// <summary>The line character (| / \ -) that best follows the direction on screen.</summary>
         private static char LineGlyph(PointF direction)
         {
             float across = Math.Abs(direction.X);
@@ -161,7 +151,6 @@ namespace prog2200_assign2_library
                 return '-';
             }
 
-            // Screen y points down, so moving right and up is "/".
             return direction.X * direction.Y < 0 ? '/' : '\\';
         }
 
@@ -173,7 +162,7 @@ namespace prog2200_assign2_library
             graphics.DrawImage(GlyphAtlas.GetSprite(glyph, color), area);
         }
 
-        /// <summary>A point on the cubic Bezier curve p0-p1-p2-p3 at <paramref name="t"/> (0 = p0, 1 = p3).</summary>
+        /// <summary>A point on the cubic Bezier curve p0-p1-p2-p3 at t (0 to 1).</summary>
         private static PointF Bezier(PointF p0, PointF p1, PointF p2, PointF p3, float t)
         {
             float u = 1 - t;
@@ -185,7 +174,7 @@ namespace prog2200_assign2_library
             return new PointF(a * p0.X + b * p1.X + c * p2.X + d * p3.X, a * p0.Y + b * p1.Y + c * p2.Y + d * p3.Y);
         }
 
-        /// <summary>Which way the curve is heading at <paramref name="t"/> (not normalised).</summary>
+        /// <summary>The curve's direction at t (not normalised).</summary>
         private static PointF BezierDirection(PointF p0, PointF p1, PointF p2, PointF p3, float t)
         {
             float u = 1 - t;

@@ -6,70 +6,40 @@ using System.Text;
 namespace prog2200_assign2_library
 {
     /// <summary>
-    /// Base class for a lily head drawn as ASCII art the way TouchDesigner's ASCII effect works: the head is
-    /// described as a brightness field, the field is sampled on a grid of character cells, and each cell shows
-    /// the character from <see cref="Ramp"/> that matches its brightness (dark " " up to bright "@"). The characters
-    /// are copied out of a <see cref="GlyphAtlas"/> into one bitmap per lily, which is drawn in a single call.
-    /// The head grows from a seed at the end of its stem into a sprout, a bud and an open flower, then crumbles away
-    /// as it wilts, turning from its own colour to red, brown and then dark until it disappears. Like stop-motion, the head's picture is only redrawn every few ticks, so it grows in
-    /// small steps while it still moves smoothly. Grain, dark specks and a few stray flickering "data" characters around the head give
-    /// it the look of a TouchDesigner render. The stem itself is drawn by <see cref="Stems"/>.
+    /// Abstract base for a lily head drawn in ASCII, the way TouchDesigner's ASCII effect works: the head is a
+    /// brightness field, sampled on a grid of character cells, and each cell shows the character from
+    /// <see cref="Ramp"/> that matches its brightness. The grid is redrawn every few ticks (stop-motion) and copied
+    /// into one bitmap, which is drawn with a single DrawImage call.
+    /// Shapes are described in "head units": x from -0.5 to 0.5 across the head, y downwards from 0 at the top.
     /// </summary>
-    /// <remarks>
-    /// The head is described in "head units": x runs from -0.5 (left edge) to 0.5 (right edge) and y runs
-    /// down from 0 at the top, using the same scale, so one unit is the head's full width.
-    /// </remarks>
     public abstract class AsciiLily : Flower
     {
-        // Characters for the stray "data" bits that flicker in the empty space around a lily.
         private const string DataGlyphs = "-.:'|";
-
-        // Head height compared to its width.
-        private const float HeightToWidth = 1.0f;
-
-        // Fewest columns and rows the grid can shrink to, so a seed still shows. Columns must be odd.
         private const int MinColumns = 7;
         private const int MinRows = 7;
-
-        // Each cell is sampled on a small grid of points and the results blended, like downsampling an image.
         private const int SamplesAcross = 2;
         private const int SamplesDown = 2;
-
-        // Fraction of cells that get a dark speck, like the texture in a TouchDesigner noise render.
         private const float SpeckChance = 0.08f;
-
-        // How many ticks the stray data characters stay in one place before they jump somewhere else.
         private const int DataGlyphTicks = 6;
-
-        // How many ticks pass between redrawing the head's picture: its stop-motion frame rate.
         private const int StopMotionTicks = 4;
 
-        /// <summary>Colours shared by every lily's sprout and bud: pale greens, like the reference render.</summary>
         protected static readonly Color StemColor = Color.FromArgb(120, 170, 90);
         protected static readonly Color LeafColor = Color.FromArgb(165, 205, 120);
-
         private static readonly Color SeedColor = Color.FromArgb(215, 195, 140);
 
-        // Full-bloom width in pixels.
         private readonly float _bloomWidth;
-
-        // Makes each lily's grain and specks different.
         private readonly int _noiseSeed;
 
         private char[,] _characters;
         private Color[,] _colors;
         private int _ticksAlive;
-
-        // Set when the head changes stage, so the next frame is drawn straight away instead of waiting.
         private bool _redrawNow;
 
-        // The characters copied into pixels, and whether that copy is up to date with the character grid.
         private Bitmap _bitmap;
         private int[] _pixels;
         private bool _bitmapIsCurrent;
 
-        // Set each time the head is rasterized: head units covered by one column and one row, the head's height
-        // in head units and its width in pixels.
+        // Set by Rasterize: head units per column and per row, head height in head units, head width in pixels.
         private float _columnUnit;
         private float _rowUnit;
         private float _headHeight;
@@ -82,7 +52,6 @@ namespace prog2200_assign2_library
             _noiseSeed = (int)(velocity.X * 7919) ^ (int)(velocity.Y * 104729);
         }
 
-        /// <summary>The size of the character grid, which grows with the flower. It changes when a new frame is drawn.</summary>
         public override SizeF Size
         {
             get
@@ -95,37 +64,34 @@ namespace prog2200_assign2_library
             }
         }
 
-        /// <summary>Where the stem meets the head: <see cref="StemTop"/>, in panel coordinates.</summary>
         public override PointF StemEnd
         {
             get { return _characters == null ? Center : ToPanel(StemTop); }
         }
 
-        /// <summary>Characters to pick from, from empty to brightest.</summary>
+        /// <summary>Characters from empty to brightest.</summary>
         protected virtual string Ramp
         {
             get { return AsciiCanvas.Ramp; }
         }
 
-        /// <summary>Size of one character cell, in pixels.</summary>
         protected virtual Size CellSize
         {
             get { return new Size(GlyphAtlas.CellWidth, GlyphAtlas.CellHeight); }
         }
 
-        /// <summary>Where the stem meets the head, in head units. The seed, sprout, bud and flower all grow from here.</summary>
+        /// <summary>Where the stem meets the head, in head units.</summary>
         protected virtual PointF StemTop
         {
             get { return new PointF(0f, HeadHeight * 0.5f); }
         }
 
-        /// <summary>Height of the head in head units (its width is 1).</summary>
         protected float HeadHeight
         {
             get { return _headHeight; }
         }
 
-        /// <summary>How far the shoot has grown, from 0 (still a seed) to 1 (fully grown).</summary>
+        /// <summary>How far the shoot has grown, 0 to 1.</summary>
         protected float StemGrowth
         {
             get
@@ -144,7 +110,7 @@ namespace prog2200_assign2_library
             }
         }
 
-        /// <summary>How big the bud is, from 0 (no bud yet) to 1 (about to open).</summary>
+        /// <summary>How big the bud is, 0 to 1.</summary>
         protected float BudSize
         {
             get
@@ -162,7 +128,7 @@ namespace prog2200_assign2_library
             }
         }
 
-        /// <summary>How open the flower is, from 0 (closed) to 1 (fully open). It opens early in the bloom stage.</summary>
+        /// <summary>How open the flower is, 0 to 1.</summary>
         protected float BloomOpen
         {
             get
@@ -179,10 +145,9 @@ namespace prog2200_assign2_library
             }
         }
 
-
         /// <summary>
-        /// Grows and moves like every other flower, then, every few ticks, draws the next frame of the head into its
-        /// character grid. When the grid changes size the head is shifted so the end of its stem stays where it was.
+        /// Moves like every flower, then redraws the grid every few ticks. If the grid changes size, the head is
+        /// shifted so its stem end stays put.
         /// </summary>
         public override void Move(Rectangle bounds)
         {
@@ -207,7 +172,6 @@ namespace prog2200_assign2_library
             }
         }
 
-        /// <summary>Draws the lily's bitmap of characters, bringing it up to date first if the grid has changed.</summary>
         public override void Draw(Graphics graphics)
         {
             if (_characters == null)
@@ -227,7 +191,6 @@ namespace prog2200_assign2_library
             graphics.DrawImage(_bitmap, destination, new Rectangle(0, 0, width, height), GraphicsUnit.Pixel);
         }
 
-        /// <summary>Frees the bitmap.</summary>
         public override void Remove()
         {
             if (_bitmap != null)
@@ -237,7 +200,7 @@ namespace prog2200_assign2_library
             }
         }
 
-        /// <summary>Samples the head on the character grid and stores the character and colour for every cell.</summary>
+        /// <summary>Samples the head on the grid and stores each cell's character and colour.</summary>
         protected void Rasterize()
         {
             Size grid = GridSize(GrowthScale);
@@ -262,7 +225,7 @@ namespace prog2200_assign2_library
             {
                 for (int column = 0; column < grid.Width; column++)
                 {
-                    // Measured from the middle so the texture stays on the same part of the head as it grows.
+                    // Measured from the middle so the texture stays put as the grid grows.
                     int fromCentre = column - grid.Width / 2;
                     int fromMiddle = row - grid.Height / 2;
 
@@ -276,8 +239,7 @@ namespace prog2200_assign2_library
                         _characters[row, column] = ramp[level];
                         _colors[row, column] = AsciiCanvas.Shade(AsciiCanvas.Wilted(sample.Color, wilt), brightness);
                     }
-                    else if (IsInsideAura(column, row, grid) &&
-                        TryDataGlyph(fromCentre, fromMiddle, dataTick, out glyph))
+                    else if (IsInsideAura(column, row, grid) && TryDataGlyph(fromCentre, fromMiddle, dataTick, out glyph))
                     {
                         _characters[row, column] = glyph;
                         _colors[row, column] = AsciiCanvas.Shade(AsciiCanvas.Wilted(Color, wilt), 0f);
@@ -293,7 +255,7 @@ namespace prog2200_assign2_library
             OnRasterized();
         }
 
-        /// <summary>The character grid as text, one line per row.</summary>
+        /// <summary>The character grid as text, one line per row (used by the Label lily).</summary>
         protected string GridText()
         {
             StringBuilder text = new StringBuilder();
@@ -314,24 +276,19 @@ namespace prog2200_assign2_library
             return text.ToString();
         }
 
-        /// <summary>Called after the character grid has been redrawn.</summary>
         protected virtual void OnRasterized()
         {
         }
 
-        /// <summary>A new stage looks different straight away, so the next frame is drawn without waiting.</summary>
         protected override void OnStageChanged()
         {
             _redrawNow = true;
         }
 
-        /// <summary>The flower itself, at head point (<paramref name="x"/>, <paramref name="y"/>).</summary>
+        /// <summary>Rubric (polymorphic processing): each kind of lily supplies its own flower shape.</summary>
         protected abstract AsciiSample SampleBloom(float x, float y);
 
-        /// <summary>
-        /// A shoot pushing up from <see cref="StemTop"/> with two small leaves at its tip. It shrinks away as the
-        /// bud grows in its place.
-        /// </summary>
+        /// <summary>A shoot with two small leaves, which shrinks away as the bud grows.</summary>
         protected virtual AsciiSample SampleSprout(float x, float y)
         {
             float sprout = StemGrowth * (1f - BudSize);
@@ -352,7 +309,7 @@ namespace prog2200_assign2_library
             return new AsciiSample(Math.Max(shoot, Math.Max(leftLeaf, rightLeaf)), LeafColor);
         }
 
-        /// <summary>A closed bud on top of the stem that swells, then shrinks away as the flower opens.</summary>
+        /// <summary>A closed bud that swells, then shrinks away as the flower opens.</summary>
         protected virtual AsciiSample SampleBud(float x, float y)
         {
             float bud = BudSize * (1f - BloomOpen);
@@ -368,18 +325,13 @@ namespace prog2200_assign2_library
             float dx = (x - top.X) / radiusX;
             float dy = (y - (top.Y - radiusY * 0.8f)) / radiusY;
             float distance = (float)Math.Sqrt(dx * dx + dy * dy);
-
-            // Faint lines down the bud where the petals overlap.
             float seam = Math.Abs(dx) < 0.15f ? 0.15f : 0f;
 
-            return new AsciiSample(Clamp01((1f - distance) * 3f) * (0.75f + seam), Blend(LeafColor, Color, bud));
+            return new AsciiSample(AsciiCanvas.Clamp01((1f - distance) * 3f) * (0.75f + seam),
+                AsciiCanvas.Blend(LeafColor, Color, bud));
         }
 
-        /// <summary>
-        /// Brightness of a leaf blade from <paramref name="start"/> to <paramref name="end"/>: pointed at both ends,
-        /// widest in the middle, arching upwards by <paramref name="arch"/> of its length, with a bright midrib and
-        /// faint veins angled out from it.
-        /// </summary>
+        /// <summary>A pointed leaf from start to end, arched upwards, with a bright midrib and faint veins.</summary>
         protected float LeafBlade(float x, float y, PointF start, PointF end, float halfWidth, float arch)
         {
             float axisX = end.X - start.X;
@@ -400,7 +352,6 @@ namespace prog2200_assign2_library
                 return 0f;
             }
 
-            // Lower the point by the arch instead of raising the leaf, then measure across the straight line.
             float bow = arch * length * (float)Math.Sin(Math.PI * along);
             float across = Math.Abs(-(x - start.X) * unitY + (y + bow - start.Y) * unitX);
             float half = halfWidth * (float)Math.Pow(Math.Sin(Math.PI * along), 0.7);
@@ -418,22 +369,17 @@ namespace prog2200_assign2_library
             return edge * Math.Max(blade, midrib);
         }
 
-        /// <summary>
-        /// Brightness of a shape edge: 1 inside <paramref name="radius"/>, fading to 0 just outside it.
-        /// The fade is about the width of one sample, which smooths the edges like anti-aliasing.
-        /// </summary>
+        /// <summary>1 inside radius, fading to 0 over about one sample (anti-aliased edges).</summary>
         protected float Soft(float distance, float radius)
         {
             return AsciiCanvas.Soft(distance, radius, _columnUnit / SamplesAcross);
         }
 
-        /// <summary>Brightness of a line from <paramref name="start"/> to <paramref name="end"/> with round ends.</summary>
         protected float Segment(float x, float y, PointF start, PointF end, float radius)
         {
-            return Soft(DistanceToSegment(x, y, start, end), radius);
+            return Soft(AsciiCanvas.DistanceToSegment(x, y, start, end), radius);
         }
 
-        /// <summary>Brightness of a filled circle.</summary>
         protected float Disc(float x, float y, PointF centre, float radius)
         {
             float dx = x - centre.X;
@@ -442,49 +388,23 @@ namespace prog2200_assign2_library
             return Soft((float)Math.Sqrt(dx * dx + dy * dy), radius);
         }
 
-        /// <summary>Converts a point in head units to panel pixels, using the last rasterized grid.</summary>
+        /// <summary>Converts a point in head units to panel pixels.</summary>
         protected PointF ToPanel(PointF point)
         {
             return new PointF(X + (point.X + 0.5f) * _headWidthPixels, Y + point.Y * _headWidthPixels);
         }
 
-        protected static float DistanceToSegment(float x, float y, PointF start, PointF end)
-        {
-            return AsciiCanvas.DistanceToSegment(x, y, start, end);
-        }
-
-        /// <summary>Mixes two colours: 0 gives <paramref name="from"/>, 1 gives <paramref name="to"/>.</summary>
-        protected static Color Blend(Color from, Color to, float amount)
-        {
-            return AsciiCanvas.Blend(from, to, amount);
-        }
-
-        protected static float Clamp01(float value)
-        {
-            return AsciiCanvas.Clamp01(value);
-        }
-
-        /// <summary>
-        /// Columns and rows in the grid when the head is at <paramref name="scale"/> of its full-bloom size.
-        /// The column count is kept odd so the stem meets the middle column.
-        /// </summary>
+        /// <summary>Grid columns and rows at a given share of full size. Columns stay odd so the stem meets the middle.</summary>
         private Size GridSize(float scale)
         {
             Size cell = CellSize;
-
-            int columns = (int)Math.Round(_bloomWidth * scale / cell.Width) | 1;
-            columns = Math.Max(MinColumns, columns);
-
-            int rows = (int)Math.Round(columns * cell.Width * HeightToWidth / cell.Height);
-            rows = Math.Max(MinRows, rows);
+            int columns = Math.Max(MinColumns, (int)Math.Round(_bloomWidth * scale / cell.Width) | 1);
+            int rows = Math.Max(MinRows, (int)Math.Round((float)columns * cell.Width / cell.Height));
 
             return new Size(columns, rows);
         }
 
-        /// <summary>
-        /// Brightness and colour of one cell: the head is sampled at several points inside the cell and the average
-        /// is mixed with the brightest point, so thin lines still show while wide shapes are shaded smoothly.
-        /// </summary>
+        /// <summary>Samples several points in a cell and mixes the average with the brightest, so thin lines still show.</summary>
         private AsciiSample SampleCell(int column, int row)
         {
             float total = 0f;
@@ -508,7 +428,6 @@ namespace prog2200_assign2_library
             return new AsciiSample((average + brightest.Intensity) / 2, brightest.Color);
         }
 
-        /// <summary>Every part of the head at one point: seed, sprout, bud and flower.</summary>
         private AsciiSample SampleHead(float x, float y)
         {
             AsciiSample result = SampleSeed(x, y);
@@ -517,7 +436,6 @@ namespace prog2200_assign2_library
             return AsciiSample.Brighter(result, SampleBloom(x, y));
         }
 
-        /// <summary>The seed at the end of the stem, which swells while it waits and fades as the sprout grows.</summary>
         private AsciiSample SampleSeed(float x, float y)
         {
             float seedLeft = 1f - StemGrowth * 2;
@@ -533,10 +451,7 @@ namespace prog2200_assign2_library
             return new AsciiSample(seed, SeedColor);
         }
 
-        /// <summary>
-        /// Adds grain and dark specks to a cell's brightness, and while wilting makes bits of the head drop away
-        /// and the rest fade until nothing is left.
-        /// </summary>
+        /// <summary>Adds grain and dark specks; while wilting, cells drop away and the rest fade out.</summary>
         private float Texture(float brightness, int fromCentre, int fromMiddle, float wilt)
         {
             if (brightness <= 0)
@@ -558,13 +473,10 @@ namespace prog2200_assign2_library
                 return 0f;
             }
 
-            return Clamp01(brightness * (1f - wilt));
+            return AsciiCanvas.Clamp01(brightness * (1f - wilt));
         }
 
-        /// <summary>
-        /// Whether a cell is inside the round area around the head where data characters may appear, so they
-        /// never fill the corners of the grid and show its square outline.
-        /// </summary>
+        /// <summary>Keeps the stray data characters inside a circle, so the grid's square outline never shows.</summary>
         private bool IsInsideAura(int column, int row, Size grid)
         {
             Size cell = CellSize;
@@ -575,10 +487,7 @@ namespace prog2200_assign2_library
             return dx * dx + dy * dy < radius * radius;
         }
 
-        /// <summary>
-        /// Whether an empty cell shows a stray data character right now. They come in short horizontal runs, which
-        /// move every few ticks, and there are more of them while the lily is in bloom.
-        /// </summary>
+        /// <summary>Short flickering runs of data characters in empty cells, more of them while in bloom.</summary>
         private bool TryDataGlyph(int fromCentre, int fromMiddle, int tick, out char glyph)
         {
             float runChance = 0.02f + 0.05f * BloomOpen;
@@ -594,7 +503,7 @@ namespace prog2200_assign2_library
             return true;
         }
 
-        /// <summary>Copies the character grid into the bitmap, making the bitmap first if it is too small.</summary>
+        /// <summary>Copies the grid into the bitmap, making a full-bloom-sized bitmap the first time.</summary>
         private void ComposeBitmap()
         {
             int width = _characters.GetLength(1) * GlyphAtlas.CellWidth;
@@ -602,7 +511,6 @@ namespace prog2200_assign2_library
 
             if (_bitmap == null || _bitmap.Width < width || _bitmap.Height < height)
             {
-                // Made big enough for the flower in full bloom, so it rarely has to be made again.
                 Size fullGrid = GridSize(1f);
 
                 if (_bitmap != null)

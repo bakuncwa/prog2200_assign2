@@ -6,29 +6,20 @@ using System.Threading;
 namespace prog2200_assign2_library
 {
     /// <summary>
-    /// Makes flowers wilt one at a time instead of all at once. Flowers that are ready to wilt are handed to
-    /// <see cref="Request"/>; a background worker thread lets them go one by one, waiting a while after each one
-    /// actually starts wilting before letting the next go. The garden's timer collects each flower whose turn has come
-    /// with <see cref="TryTakeNext"/> and tells it to wilt.
+    /// Makes lilies wilt one at a time. Ready lilies are queued with <see cref="Request"/>; a background worker
+    /// thread releases them one by one, a set gap apart, and the timer collects each with <see cref="TryTakeNext"/>.
+    /// The worker never touches a flower: only the user-interface thread changes flowers.
     /// </summary>
-    /// <remarks>
-    /// The worker thread only passes flowers along; it never touches them. Request and TryTakeNext are called on the
-    /// user-interface thread, which is the only thread that changes a flower.
-    /// </remarks>
     public sealed class WiltScheduler : IDisposable
     {
-        // How long the worker waits for the garden to stop before giving up when the scheduler is disposed.
         private const int StopTimeoutMs = 1000;
 
-        // Flowers waiting for their turn, oldest first, and the one whose turn has come.
         private readonly BlockingCollection<Flower> _waiting = new BlockingCollection<Flower>();
         private readonly ConcurrentQueue<Flower> _released = new ConcurrentQueue<Flower>();
 
-        // Flowers that have been requested and not yet taken, so each one is only queued once.
         // Only used on the user-interface thread.
         private readonly HashSet<Flower> _queued = new HashSet<Flower>();
 
-        // Set by the garden when it takes the released flower; set when the scheduler is disposed.
         private readonly AutoResetEvent _taken = new AutoResetEvent(false);
         private readonly ManualResetEvent _stopping = new ManualResetEvent(false);
 
@@ -37,7 +28,6 @@ namespace prog2200_assign2_library
 
         private bool _isDisposed;
 
-        /// <param name="gapMs">Milliseconds between one flower starting to wilt and the next being let go.</param>
         public WiltScheduler(int gapMs)
         {
             _gapMs = gapMs;
@@ -49,7 +39,7 @@ namespace prog2200_assign2_library
             _worker.Start();
         }
 
-        /// <summary>Puts <paramref name="flower"/> in the queue to wilt, unless it is already waiting.</summary>
+        /// <summary>Queues a flower to wilt, unless it is already queued.</summary>
         public void Request(Flower flower)
         {
             if (_queued.Add(flower))
@@ -58,7 +48,7 @@ namespace prog2200_assign2_library
             }
         }
 
-        /// <summary>Gets the flower whose turn it is to wilt, if there is one right now.</summary>
+        /// <summary>Gets the flower whose turn it is to wilt, if any.</summary>
         public bool TryTakeNext(out Flower flower)
         {
             if (!_released.TryDequeue(out flower))
@@ -88,10 +78,7 @@ namespace prog2200_assign2_library
             _stopping.Dispose();
         }
 
-        /// <summary>
-        /// The worker thread: lets the waiting flowers go one at a time. After each one it waits until the garden has
-        /// taken it (so a paused garden does not build up a crowd that would all wilt together), then waits the gap.
-        /// </summary>
+        /// <summary>Worker thread: releases one flower, waits until it is taken, then waits the gap.</summary>
         private void ReleaseOneAtATime()
         {
             WaitHandle[] takenOrStopping = { _taken, _stopping };
@@ -110,7 +97,7 @@ namespace prog2200_assign2_library
             }
             catch (ObjectDisposedException)
             {
-                // The scheduler was disposed while the worker was waiting; there is nothing left to do.
+                // Disposed while waiting; nothing left to do.
             }
         }
     }

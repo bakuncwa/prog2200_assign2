@@ -4,14 +4,12 @@ using System.Drawing;
 namespace prog2200_assign2_library
 {
     /// <summary>
-    /// A tiger lily in ASCII: six wide orange petals with dark spots whose tips curl back, and stamens that reach
-    /// out past the petals.
-    /// Visual state change: the set of characters it is drawn with changes at every growth stage, from a few round
-    /// characters for the seed to the full brightness ramp in bloom and soft, curly characters while it wilts.
+    /// A tiger lily: six wide spotted orange petals with curled-back tips, and stamens reaching past them.
+    /// Rubric (visual state change 1): it is drawn with a different set of characters at each growth stage.
     /// </summary>
     public class TigerLily : AsciiLily
     {
-        // Characters to draw with in each GrowthStage, in order (Seed, Sprout, Bud, Bloom, Wilt), from empty to brightest.
+        // Characters for each GrowthStage (Seed, Sprout, Bud, Bloom, Wilt), from empty to brightest.
         private static readonly string[] StageRamps =
         {
             " .o",
@@ -22,8 +20,6 @@ namespace prog2200_assign2_library
         };
 
         private const int PetalCount = 6;
-
-        // Radius of the open flower, in plant units.
         private const float BloomRadius = 0.40f;
 
         private static readonly Color BloomColor = Color.DarkOrange;
@@ -58,11 +54,9 @@ namespace prog2200_assign2_library
             float sector = (float)(2 * Math.PI / PetalCount);
             float firstPetal = (float)(-Math.PI / 2);
 
-            // Angle from the middle of the nearest petal, between -sector/2 and sector/2.
+            // Each petal is widest in the middle of its sector and pointed at both sides.
             float nearest = (float)Math.Round(AngleBetween(angle, firstPetal) / sector);
             float fromPetal = AngleBetween(angle, firstPetal + nearest * sector);
-
-            // Each petal is widest in the middle and comes to a point at both sides.
             float petalEdge = radius * (float)Math.Pow(Math.Max(0, Math.Cos(fromPetal * PetalCount / 2)), 0.6);
             AsciiSample result = AsciiSample.Empty;
 
@@ -70,15 +64,14 @@ namespace prog2200_assign2_library
             {
                 float along = distance / petalEdge;
 
-                // Dark spots scattered over the middle of each petal.
                 if (along > 0.25f && along < 0.8f && Math.Sin(distance * 70) * Math.Sin(angle * 14) > 0.6)
                 {
                     return new AsciiSample(0.25f, SpotColor);
                 }
 
-                // The petal gets brighter towards the tip, where it curls back on itself.
-                float petal = Soft(distance, petalEdge) * (0.5f + 0.45f * Clamp01(along) * Clamp01(along));
-                result = new AsciiSample(petal, Color);
+                // Brighter towards the tip, where the petal curls back.
+                float towardsTip = AsciiCanvas.Clamp01(along);
+                result = new AsciiSample(Soft(distance, petalEdge) * (0.5f + 0.45f * towardsTip * towardsTip), Color);
             }
 
             for (int i = 0; i < PetalCount; i++)

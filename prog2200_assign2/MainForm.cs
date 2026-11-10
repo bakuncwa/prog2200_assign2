@@ -10,49 +10,37 @@ using prog2200_assign2_library;
 namespace prog2200_assign2
 {
     /// <summary>
-    /// The ASCII Lily Garden screen saver window: one vase at the bottom middle of the garden, with every lily's stem
-    /// branching out of its mouth. All lily shapes live in prog2200_assign2_library; this form keeps them in an
-    /// ArrayList and processes them polymorphically: on every timer tick each item is cast back to
-    /// <see cref="Flower"/> and told to Move, and on every repaint it is told to Draw. Which Move and Draw actually
-    /// run is decided at run time by the flower's real type (late binding).
+    /// The ASCII Lily Garden screen saver window: one vase at the bottom middle, with every lily's stem growing out
+    /// of its mouth. The lily shapes are in prog2200_assign2_library.
     /// </summary>
     public partial class MainForm : Form
     {
-        // Used when App.config does not set a value.
+        // Defaults for when App.config does not set a value.
         private const int DefaultTickIntervalMs = 30;
         private const int DefaultStartingFlowersPerKind = 1;
         private const int DefaultMaxFlowers = 16;
 
-        // Full-bloom width range for the lily heads, in pixels.
         private const int MinBloomSize = 90;
         private const int MaxBloomSize = 130;
 
-        // Drifting speed range, in pixels per tick.
         private const double MinSpeed = 0.4;
         private const double MaxSpeed = 0.9;
 
-        // How far a new stem's direction can stray either side of where it was aimed, or of straight up, in radians.
         private const double AimSpread = Math.PI / 6;
         private const double UpwardSpread = Math.PI / 4;
 
-        // A right-click puts one of each kind in, fully grown, spread this many pixels around the click.
         private const float BouquetSpread = 70f;
 
-        // Lilies wilt one at a time, at least this many milliseconds apart.
         private const int WiltGapMs = 1500;
 
-        // Pixels kept clear between the furthest a head can reach and the garden's edge, and the shortest full reach
-        // a stem can have in a very small garden.
         private const float ReachMargin = 20f;
         private const float MinReach = 50f;
 
-        // When the garden is made bigger, one new seedling is planted for every this many new square pixels.
         private const int AreaPerNewSeedling = 150000;
 
         private const string RunningHint = "Click: add a grown lily   Right-click: add one of each";
         private const string PausedHint = "Paused";
 
-        // Spider lilies come in reds, pinks, golds and white. The other lilies choose their own colours.
         private static readonly Color[] SpiderLilyColors =
         {
             Color.Crimson,
@@ -63,29 +51,25 @@ namespace prog2200_assign2
             Color.LightCoral
         };
 
-        // Every flower in the garden. Each one is explicitly upcast to Flower (and then to object) when it is added,
-        // and explicitly cast back to Flower whenever it is used.
+        // Rubric (polymorphic processing): every flower, upcast explicitly to Flower and object when added and cast
+        // explicitly back to Flower whenever it is read.
         private readonly ArrayList _flowers = new ArrayList();
 
         private readonly Random _random = new Random();
 
-        // The one vase every stem grows from.
         private readonly Vase _vase = new Vase();
 
-        // Lets lilies that are ready to wilt go one at a time, on its own background thread.
+        // Releases lilies that are ready to wilt one at a time, on a background thread.
         private readonly WiltScheduler _wiltScheduler = new WiltScheduler(WiltGapMs);
 
-        // Read from the appSettings section of App.config.
         private readonly int _startingFlowersPerKind = ReadSetting("StartingFlowersPerKind", DefaultStartingFlowersPerKind);
 
-        // Lilies that sprout by themselves (from pollination or a bigger window) stop once the garden holds this many.
+        // Lilies added automatically (pollination, a bigger window) stop at this many.
         private readonly int _maxFlowers = ReadSetting("MaxFlowers", DefaultMaxFlowers);
 
-        // Garden area at the last resize, and new area added since the last seedling was planted for it.
         private int _lastGardenArea;
         private int _grownGardenArea;
 
-        // How the window looked before going full screen, so it can be put back.
         private FormBorderStyle _windowedBorderStyle;
         private FormWindowState _windowedState;
         private bool _isFullScreen;
@@ -105,10 +89,7 @@ namespace prog2200_assign2
             animationTimer.Interval = ReadSetting("TickIntervalMs", DefaultTickIntervalMs);
         }
 
-        /// <summary>
-        /// Places the vase, plants the first seeds in it (they branch out from there) and starts the animation.
-        /// Done here rather than in the constructor because the panel only has its real size once the window is on screen.
-        /// </summary>
+        /// <summary>Plants the first seeds once the panel has its real size, and starts the timer.</summary>
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
@@ -134,7 +115,7 @@ namespace prog2200_assign2
             base.OnFormClosing(e);
         }
 
-        /// <summary>Lets Esc leave full screen, which is easier to find than F11.</summary>
+        /// <summary>Esc leaves full screen.</summary>
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
             if (keyData == Keys.Escape && _isFullScreen)
@@ -213,8 +194,8 @@ namespace prog2200_assign2
         #region Garden events
 
         /// <summary>
-        /// A left-click puts a fully grown random lily into the vase with its head at the click; a right-click puts
-        /// in one of every kind, spread around the click. They carry on from full bloom to wilting, then resprout.
+        /// Rubric (adding shapes): a left-click adds a fully grown random lily with its head at the click; a right-click
+        /// adds one of each kind around it.
         /// </summary>
         private void gardenPanel_MouseClick(object sender, MouseEventArgs e)
         {
@@ -229,16 +210,14 @@ namespace prog2200_assign2
         }
 
         /// <summary>
-        /// One animation step: every flower grows and moves along its stem (bouncing off the walls of the panel's
-        /// current size), then flowers that are about to touch bounce off each other, then lilies that are ready to
-        /// wilt are queued and the one whose turn has come starts wilting, then the panel is repainted. Two fresh
-        /// blooms that meet pollinate each other, and a new lily grows from the vase towards where they met.
+        /// One animation step: move every flower, bounce them off each other, add a lily where two blooms met,
+        /// wilt the next lily in turn, then repaint.
         /// </summary>
         private void animationTimer_Tick(object sender, EventArgs e)
         {
             Rectangle bounds = gardenPanel.ClientRectangle;
 
-            // The panel has no size while the window is minimized; wait until it comes back.
+            // The panel has no size while the window is minimized.
             if (bounds.Width == 0 || bounds.Height == 0)
             {
                 return;
@@ -246,7 +225,7 @@ namespace prog2200_assign2
 
             foreach (object item in _flowers)
             {
-                // Late binding: the reference is a Flower, but the Move that runs belongs to the flower's real type.
+                // Rubric (polymorphic processing): late binding, the Move that runs is the flower's own override.
                 Flower flower = (Flower)item;
                 flower.Move(bounds);
             }
@@ -268,7 +247,7 @@ namespace prog2200_assign2
             gardenPanel.Invalidate();
         }
 
-        /// <summary>Draws the stems first, then the vase over their bottoms, then the lily heads.</summary>
+        /// <summary>Draws the stems, then the vase over their bottoms, then the heads (each with its own Draw).</summary>
         private void gardenPanel_Paint(object sender, PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -289,9 +268,8 @@ namespace prog2200_assign2
         }
 
         /// <summary>
-        /// Moves the vase to the new bottom middle and reties every stem to it with a reach that fits the new size,
-        /// and pulls any flower that is now past an edge back inside. When the garden grows, new lilies sprout:
-        /// one for every <see cref="AreaPerNewSeedling"/> new square pixels.
+        /// Rubric (shapes respond): moves the vase, gives every stem a reach that fits the new size and pulls flowers
+        /// back inside. A bigger garden also gets a new lily for every <see cref="AreaPerNewSeedling"/> square pixels.
         /// </summary>
         private void gardenPanel_Resize(object sender, EventArgs e)
         {
@@ -311,7 +289,7 @@ namespace prog2200_assign2
                 flower.KeepInside(bounds);
             }
 
-            // Nothing is planted for the resizes that happen while the window is first laid out.
+            // Skip the resizes that happen while the window is first laid out.
             if (_lastGardenArea == 0)
             {
                 return;
@@ -337,10 +315,7 @@ namespace prog2200_assign2
 
         #region Helpers
 
-        /// <summary>
-        /// Hands every lily that is ready to wilt to the wilt scheduler, then starts wilting the one whose turn it is
-        /// (if it is still in the garden). The scheduler lets them go one at a time, so they never all wilt together.
-        /// </summary>
+        /// <summary>Queues lilies that are ready to wilt, and wilts the one whose turn it is.</summary>
         private void WiltInTurn()
         {
             foreach (object item in _flowers)
@@ -361,9 +336,7 @@ namespace prog2200_assign2
             }
         }
 
-        /// <summary>
-        /// Plants a seed of the given kind in the vase mouth, with its stem heading towards <paramref name="aim"/>.
-        /// </summary>
+        /// <summary>Rubric (adding shapes): plants a seed in the vase mouth, its stem heading towards aim.</summary>
         private void AddFlower(FlowerKind kind, Point aim)
         {
             Flower flower = CreateFlower(kind, aim);
@@ -372,10 +345,7 @@ namespace prog2200_assign2
             AddToGarden(flower);
         }
 
-        /// <summary>
-        /// Puts a fully grown lily of the given kind into the vase with its head at <paramref name="head"/>.
-        /// It is in full bloom straight away and carries on from there: wilting, then resprouting from a seed.
-        /// </summary>
+        /// <summary>Adds a lily already in full bloom with its head at the given point.</summary>
         private void AddGrownFlower(FlowerKind kind, Point head)
         {
             Flower flower = CreateFlower(kind, head);
@@ -386,7 +356,7 @@ namespace prog2200_assign2
             AddToGarden(flower);
         }
 
-        /// <summary>Puts one fully grown lily of every kind into the vase, with their heads spread around <paramref name="centre"/>.</summary>
+        /// <summary>Adds one fully grown lily of each kind, spread around a point.</summary>
         private void AddGrownBouquet(Point centre)
         {
             Array kinds = Enum.GetValues(typeof(FlowerKind));
@@ -401,17 +371,14 @@ namespace prog2200_assign2
             }
         }
 
-        /// <summary>
-        /// Creates a lily of the given kind with a random size and starting colour, heading towards
-        /// <paramref name="aim"/>, with its stem tied to the vase mouth.
-        /// </summary>
+        /// <summary>Creates a lily of the given kind with a random size and colour, tied to the vase mouth.</summary>
         private Flower CreateFlower(FlowerKind kind, Point aim)
         {
             PointF velocity = VelocityTowards(aim);
             float bloomSize = _random.Next(MinBloomSize, MaxBloomSize + 1);
             Flower flower;
 
-            // Each new flower is explicitly upcast from its own class to Flower.
+            // Rubric (polymorphic processing): each new lily is explicitly upcast to Flower.
             switch (kind)
             {
                 case FlowerKind.SpiderLily:
@@ -443,12 +410,13 @@ namespace prog2200_assign2
             UpdateStatus();
         }
 
-        /// <summary>Plants one seed of every kind in the vase, all heading roughly towards <paramref name="aim"/>.</summary>
+        /// <summary>Plants one seed of each kind, all heading roughly towards aim.</summary>
         private void ScatterSeeds(Point aim)
         {
-            foreach (FlowerKind kind in Enum.GetValues(typeof(FlowerKind)))
+            // Enum.GetValues returns a plain Array, so each value is cast explicitly.
+            foreach (object kind in Enum.GetValues(typeof(FlowerKind)))
             {
-                AddFlower(kind, aim);
+                AddFlower((FlowerKind)kind, aim);
             }
         }
 
@@ -476,7 +444,7 @@ namespace prog2200_assign2
             return size.Width * size.Height;
         }
 
-        /// <summary>A random point somewhere above the vase mouth, for a new lily to head towards.</summary>
+        /// <summary>A random point above the vase mouth.</summary>
         private Point RandomPointAboveVase()
         {
             Size size = gardenPanel.ClientSize;
@@ -485,10 +453,7 @@ namespace prog2200_assign2
             return new Point(_random.Next(Math.Max(1, size.Width)), _random.Next(mouthHeight));
         }
 
-        /// <summary>
-        /// The longest a stem can reach in the current garden: from the vase mouth to a top corner, so a fully grown
-        /// lily can reach the top of the garden anywhere across its width. It changes whenever the window is resized.
-        /// </summary>
+        /// <summary>A stem's full reach: from the vase mouth to a top corner of the current garden.</summary>
         private float MaxReach()
         {
             Size size = gardenPanel.ClientSize;
@@ -498,11 +463,7 @@ namespace prog2200_assign2
             return Math.Max(MinReach, (float)Math.Sqrt(toTop * toTop + toSide * toSide) - ReachMargin);
         }
 
-        /// <summary>
-        /// A velocity heading from the vase mouth towards <paramref name="aim"/> (give or take a little), with a speed
-        /// between <see cref="MinSpeed"/> and <see cref="MaxSpeed"/>. If the aim is not above the vase the lily heads
-        /// roughly upwards instead, so the bouquet stands up.
-        /// </summary>
+        /// <summary>A velocity from the vase mouth towards aim, or roughly upwards if aim is not above the vase.</summary>
         private PointF VelocityTowards(Point aim)
         {
             PointF mouth = _vase.Mouth;
@@ -522,10 +483,7 @@ namespace prog2200_assign2
             return new PointF((float)(Math.Cos(angle) * speed), (float)(Math.Sin(angle) * speed));
         }
 
-        /// <summary>
-        /// Switches between a normal window and a borderless window covering the whole screen.
-        /// The flowers adjust to the new panel size on the next tick.
-        /// </summary>
+        /// <summary>Switches between a normal window and a borderless full-screen window.</summary>
         private void SetFullScreen(bool fullScreen)
         {
             if (fullScreen)
@@ -533,8 +491,7 @@ namespace prog2200_assign2
                 _windowedBorderStyle = FormBorderStyle;
                 _windowedState = WindowState;
 
-                // Back to Normal first so an already-maximized window is re-maximized without its border,
-                // covering the taskbar too.
+                // Normal first, so an already maximized window is maximized again without its border.
                 FormBorderStyle = FormBorderStyle.None;
                 WindowState = FormWindowState.Normal;
                 WindowState = FormWindowState.Maximized;
@@ -555,10 +512,7 @@ namespace prog2200_assign2
                 _flowers.Count, animationTimer.Enabled ? RunningHint : PausedHint);
         }
 
-        /// <summary>
-        /// Reads a positive whole-number setting from App.config, or returns <paramref name="defaultValue"/>
-        /// if it is missing or not a valid positive number.
-        /// </summary>
+        /// <summary>A positive whole-number setting from App.config, or the default if it is missing or invalid.</summary>
         private static int ReadSetting(string key, int defaultValue)
         {
             int value;

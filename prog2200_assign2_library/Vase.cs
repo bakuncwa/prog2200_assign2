@@ -4,22 +4,19 @@ using System.Drawing;
 namespace prog2200_assign2_library
 {
     /// <summary>
-    /// The single vase every lily grows from, drawn in ASCII like the lilies: a glazed pot with a flared lip, narrow
-    /// neck, round body and foot, lit from the upper left with a highlight and two gold bands. It stays still at the
-    /// bottom middle of the garden; its mouth is the one point every stem starts from.
+    /// The one vase every lily grows from: a glazed ASCII pot fixed at the bottom middle of the garden.
+    /// Its mouth is the single point every stem starts from.
     /// </summary>
     public class Vase
     {
         private const int Columns = 27;
         private const int Rows = 21;
 
-        // Gap between the vase and the bottom of the garden, in pixels.
         private const int BottomMargin = 6;
 
-        // How far down the vase its mouth is, as a fraction of its height.
         private const float MouthDepth = 0.04f;
 
-        // Half the vase's width at points down its height, both as fractions of its size: (height, half width).
+        // Outline as (height, half width) fractions of the vase's size, from the lip down to the foot.
         private static readonly PointF[] Profile =
         {
             new PointF(0.00f, 0.30f),   // lip
@@ -33,7 +30,7 @@ namespace prog2200_assign2_library
             new PointF(1.00f, 0.28f)
         };
 
-        // Bands of gold glaze, as (top, bottom) fractions of the height.
+        // Gold bands as (top, bottom) fractions of the height.
         private static readonly PointF[] Bands =
         {
             new PointF(0.47f, 0.51f),
@@ -53,25 +50,23 @@ namespace prog2200_assign2_library
             _bitmap = AsciiCanvas.Render(Columns, Rows, Sample, 31);
         }
 
-        /// <summary>Width of the vase in pixels.</summary>
         public int Width
         {
             get { return _bitmap.Width; }
         }
 
-        /// <summary>Height of the vase in pixels.</summary>
         public int Height
         {
             get { return _bitmap.Height; }
         }
 
-        /// <summary>The middle of the vase's mouth: where every stem starts.</summary>
+        /// <summary>Where every stem starts.</summary>
         public PointF Mouth
         {
             get { return new PointF(_location.X + Width / 2f, _location.Y + Height * MouthDepth); }
         }
 
-        /// <summary>Puts the vase at the bottom middle of <paramref name="bounds"/>. Called whenever the garden is resized.</summary>
+        /// <summary>Rubric (shapes respond): puts the vase at the bottom middle; called on every resize.</summary>
         public void Place(Rectangle bounds)
         {
             _location = new Point(bounds.Left + (bounds.Width - Width) / 2, bounds.Bottom - Height - BottomMargin);
@@ -82,7 +77,7 @@ namespace prog2200_assign2_library
             graphics.DrawImage(_bitmap, new Rectangle(_location, _bitmap.Size));
         }
 
-        /// <summary>Half the vase's width (as a fraction of its width) at <paramref name="down"/> of the way down.</summary>
+        /// <summary>Half the vase's width (as a fraction of its width) part way down.</summary>
         private static float HalfWidth(float down)
         {
             for (int i = 1; i < Profile.Length; i++)
@@ -93,7 +88,6 @@ namespace prog2200_assign2_library
                     PointF below = Profile[i];
                     float t = (down - above.X) / (below.X - above.X);
 
-                    // Smoothstep, so the outline curves between the points instead of having corners.
                     t = t * t * (3 - 2 * t);
 
                     return above.Y + (below.Y - above.Y) * t;
@@ -103,7 +97,7 @@ namespace prog2200_assign2_library
             return Profile[Profile.Length - 1].Y;
         }
 
-        /// <summary>How bright and what colour the vase is at pixel (<paramref name="x"/>, <paramref name="y"/>).</summary>
+        /// <summary>Brightness and colour of the vase at a pixel, lit from the upper left.</summary>
         private AsciiSample Sample(float x, float y)
         {
             float across = x / (Columns * GlyphAtlas.CellWidth) - 0.5f;
@@ -116,13 +110,11 @@ namespace prog2200_assign2_library
                 return AsciiSample.Empty;
             }
 
-            // The dark opening, seen as an ellipse just inside the lip.
             if (down < 0.06f && Math.Abs(across) < halfWidth * 0.75f)
             {
                 return new AsciiSample(0.2f, InsideColor);
             }
 
-            // Treat the vase as round: how far round the curve the point is, and which way that surface faces.
             float around = Math.Max(-1f, Math.Min(across / halfWidth, 1f));
             float facing = (float)Math.Sqrt(1 - around * around);
             float light = 0.3f + 0.55f * (0.7f * facing - 0.3f * around);
@@ -138,7 +130,6 @@ namespace prog2200_assign2_library
                 }
             }
 
-            // A faint diamond pattern between the two bands.
             if (down > Bands[0].Y && down < Bands[1].X && Math.Sin(around * 10 + down * 60) > 0.6)
             {
                 brightness *= 0.75f;
