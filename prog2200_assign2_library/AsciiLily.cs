@@ -285,7 +285,7 @@ namespace prog2200_assign2_library
             _redrawNow = true;
         }
 
-        /// <summary>Rubric (polymorphic processing): each kind of lily supplies its own flower shape.</summary>
+        /// <summary>Each kind of lily supplies its own flower shape.</summary>
         protected abstract AsciiSample SampleBloom(float x, float y);
 
         /// <summary>A shoot with two small leaves, which shrinks away as the bud grows.</summary>

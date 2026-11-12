@@ -155,7 +155,7 @@ namespace prog2200_assign2_library
             }
         }
 
-        /// <summary>Rubric (polymorphic processing): called on every timer tick; subclasses override it.</summary>
+        /// <summary>Called on every timer tick; subclasses override it.</summary>
         public virtual void Move(Rectangle bounds)
         {
             Grow();
@@ -164,11 +164,11 @@ namespace prog2200_assign2_library
             OnMoved();
         }
 
-        /// <summary>Rubric (polymorphic processing): each kind of lily draws itself.</summary>
+        /// <summary>Each kind of lily draws itself.</summary>
         public abstract void Draw(Graphics graphics);
 
         /// <summary>
-        /// Ties the stem to the vase mouth. Rubric (shapes respond): called again on every resize, so the reach
+        /// Ties the stem to the vase mouth. Called again on every resize, so the reach
         /// follows the new garden size.
         /// </summary>
         public void TieTo(PointF anchor, float maxReach)
@@ -177,7 +177,7 @@ namespace prog2200_assign2_library
             _maxReach = maxReach;
         }
 
-        /// <summary>Rubric (collision detection): a bloom that is bumped becomes ready to wilt.</summary>
+        /// <summary>A bloom that is bumped becomes ready to wilt.</summary>
         public virtual void OnCollision()
         {
             if (Stage == GrowthStage.Bloom)
@@ -222,7 +222,7 @@ namespace prog2200_assign2_library
             OnMoved();
         }
 
-        /// <summary>Rubric (shapes respond): pulls the flower back inside a smaller panel.</summary>
+        /// <summary>Pulls the flower back inside a smaller panel.</summary>
         public void KeepInside(Rectangle bounds)
         {
             SizeF size = Size;
@@ -374,7 +374,7 @@ namespace prog2200_assign2_library
         }
 
         /// <summary>
-        /// Rubric (bouncing off walls): puts a flower that went past an edge back on it and reflects its velocity.
+        /// Puts a flower that went past an edge back on it and reflects its velocity.
         /// Arriving at a wall counts as a bounce, and the stem springs back so the bounce is visible.
         /// </summary>
         private void BounceOffWalls(Rectangle bounds)

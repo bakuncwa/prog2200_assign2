@@ -6,9 +6,9 @@ namespace prog2200_assign2_library
 {
     /// <summary>
     /// A lily of the valley: an arched stem with little bells hanging from it.
-    /// Rubric (library control): it is shown in a Windows Forms Label (double-buffered, transparent background)
+    /// It is shown in a Windows Forms Label (double-buffered, transparent background)
     /// whose text is the ASCII grid; the label is added to the panel and moved by setting its Location.
-    /// Rubric (visual state change 4): its text flashes gold when it bumps into another flower.
+    /// Its text flashes gold when it bumps into another flower.
     /// </summary>
     public class LilyOfTheValley : AsciiLily
     {

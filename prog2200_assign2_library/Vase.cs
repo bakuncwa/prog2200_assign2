@@ -66,7 +66,7 @@ namespace prog2200_assign2_library
             get { return new PointF(_location.X + Width / 2f, _location.Y + Height * MouthDepth); }
         }
 
-        /// <summary>Rubric (shapes respond): puts the vase at the bottom middle; called on every resize.</summary>
+        /// <summary>Puts the vase at the bottom middle; called on every resize.</summary>
         public void Place(Rectangle bounds)
         {
             _location = new Point(bounds.Left + (bounds.Width - Width) / 2, bounds.Bottom - Height - BottomMargin);

@@ -5,7 +5,7 @@ namespace prog2200_assign2_library
 {
     /// <summary>
     /// A tiger lily: six wide spotted orange petals with curled-back tips, and stamens reaching past them.
-    /// Rubric (visual state change 1): it is drawn with a different set of characters at each growth stage.
+    /// It is drawn with a different set of characters at each growth stage.
     /// </summary>
     public class TigerLily : AsciiLily
     {

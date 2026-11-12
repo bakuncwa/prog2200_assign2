@@ -19,8 +19,6 @@ The shapes and collision detection are in a class library.
 
 ## Rubric Checklist
 
-Search the code for `Rubric (` to find each item.
-
 | Rubric item | Where |
 |-------------|-------|
 | Visual state changes (4) | `TigerLily` characters per growth stage, `SpiderLily` turning gradient, `CallaLily` colour on wall bounce, `LilyOfTheValley` gold flash on collision |

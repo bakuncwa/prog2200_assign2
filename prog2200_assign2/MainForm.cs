@@ -51,7 +51,7 @@ namespace prog2200_assign2
             Color.LightCoral
         };
 
-        // Rubric (polymorphic processing): every flower, upcast explicitly to Flower and object when added and cast
+        // Every flower, upcast explicitly to Flower and object when added and cast
         // explicitly back to Flower whenever it is read.
         private readonly ArrayList _flowers = new ArrayList();
 
@@ -194,7 +194,7 @@ namespace prog2200_assign2
         #region Garden events
 
         /// <summary>
-        /// Rubric (adding shapes): a left-click adds a fully grown random lily with its head at the click; a right-click
+        /// A left-click adds a fully grown random lily with its head at the click; a right-click
         /// adds one of each kind around it.
         /// </summary>
         private void gardenPanel_MouseClick(object sender, MouseEventArgs e)
@@ -225,7 +225,7 @@ namespace prog2200_assign2
 
             foreach (object item in _flowers)
             {
-                // Rubric (polymorphic processing): late binding, the Move that runs is the flower's own override.
+                // Late binding, the Move that runs is the flower's own override.
                 Flower flower = (Flower)item;
                 flower.Move(bounds);
             }
@@ -268,7 +268,7 @@ namespace prog2200_assign2
         }
 
         /// <summary>
-        /// Rubric (shapes respond): moves the vase, gives every stem a reach that fits the new size and pulls flowers
+        /// Moves the vase, gives every stem a reach that fits the new size and pulls flowers
         /// back inside. A bigger garden also gets a new lily for every <see cref="AreaPerNewSeedling"/> square pixels.
         /// </summary>
         private void gardenPanel_Resize(object sender, EventArgs e)
@@ -336,7 +336,7 @@ namespace prog2200_assign2
             }
         }
 
-        /// <summary>Rubric (adding shapes): plants a seed in the vase mouth, its stem heading towards aim.</summary>
+        /// <summary>Plants a seed in the vase mouth, its stem heading towards aim.</summary>
         private void AddFlower(FlowerKind kind, Point aim)
         {
             Flower flower = CreateFlower(kind, aim);
@@ -378,7 +378,7 @@ namespace prog2200_assign2
             float bloomSize = _random.Next(MinBloomSize, MaxBloomSize + 1);
             Flower flower;
 
-            // Rubric (polymorphic processing): each new lily is explicitly upcast to Flower.
+            // Each new lily is explicitly upcast to Flower.
             switch (kind)
             {
                 case FlowerKind.SpiderLily:

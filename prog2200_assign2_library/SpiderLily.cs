@@ -5,7 +5,7 @@ namespace prog2200_assign2_library
 {
     /// <summary>
     /// A spider lily: six thin curling petals with pollen-tipped stamens between them.
-    /// Rubric (visual state change 2): the colour gradient around the flower turns every tick, so the colour spins.
+    /// The colour gradient around the flower turns every tick, so the colour spins.
     /// </summary>
     public class SpiderLily : AsciiLily
     {

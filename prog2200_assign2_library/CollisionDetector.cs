@@ -5,7 +5,7 @@ using System.Drawing;
 namespace prog2200_assign2_library
 {
     /// <summary>
-    /// Rubric (collision detection): makes flower heads bounce off each other. Each head is a circle
+    /// Makes flower heads bounce off each other. Each head is a circle
     /// (<see cref="Flower.Center"/>, <see cref="Flower.Radius"/>) and every pair is checked once per tick.
     /// Seeds, sprouts and wilting flowers are skipped because they sit together at the vase mouth.
     /// </summary>

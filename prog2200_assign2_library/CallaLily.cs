@@ -6,8 +6,8 @@ namespace prog2200_assign2_library
 {
     /// <summary>
     /// A calla lily seen from the side, with a yellow spike (spadix) inside its trumpet.
-    /// Rubric (polygon): the trumpet is an irregular 13-point polygon, filled with ASCII and traced with DrawPolygon.
-    /// Rubric (visual state change 3): it changes to the next palette colour every time it bounces off a wall.
+    /// The trumpet is an irregular 13-point polygon, filled with ASCII and traced with DrawPolygon.
+    /// It changes to the next palette colour every time it bounces off a wall.
     /// </summary>
     public class CallaLily : AsciiLily
     {
